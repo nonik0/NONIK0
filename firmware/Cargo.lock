@@ -5,7 +5,7 @@ version = 3
 [[package]]
 name = "atmega-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=3e362624547462928a219c40f9ea8e3a64f21e5f#3e362624547462928a219c40f9ea8e3a64f21e5f"
+source = "git+https://github.com/rahix/avr-hal?rev=d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3#d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
@@ -13,21 +13,21 @@ dependencies = [
 
 [[package]]
 name = "avr-device"
-version = "0.5.4"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "546b09da5e933d18b790ccb5aae351371c6c4f8094a7b011dcd7c7e7fb69cc94"
+checksum = "520f2031240156132bd83639d86aeb5b1907e6a228d9a4b44c3e9699827e6dae"
 dependencies = [
  "avr-device-macros",
  "bare-metal",
- "cfg-if 1.0.0",
+ "cfg-if",
  "vcell",
 ]
 
 [[package]]
 name = "avr-device-macros"
-version = "0.5.4"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b108541dc1ea060dfa9b824acbded94f658f8daecca549144d05a4d01e65b6f"
+checksum = "47c26fd925156183eb10e821b2ef7e06f8163f5a64a0bbe52fc896be2c6cbd3f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -37,19 +37,28 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=3e362624547462928a219c40f9ea8e3a64f21e5f#3e362624547462928a219c40f9ea8e3a64f21e5f"
+source = "git+https://github.com/rahix/avr-hal?rev=d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3#d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3"
 dependencies = [
  "avr-device",
- "cfg-if 0.1.10",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
  "embedded-storage",
  "nb 1.1.0",
  "paste",
- "rustversion",
  "ufmt",
  "unwrap-infallible",
+]
+
+[[package]]
+name = "avr-progmem"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e93a9dd7da8f4eb57c912367e337687e06a8db6452d8c89eeb9eff1e0d2ba2d"
+dependencies = [
+ "cfg-if",
+ "derivative",
+ "ufmt",
 ]
 
 [[package]]
@@ -59,10 +68,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fe8f5a8a398345e52358e18ff07cc17a568fbca5c6f73873d3a62056309603"
 
 [[package]]
-name = "cfg-if"
-version = "0.1.10"
+name = "bitflags"
+version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
+checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
 name = "cfg-if"
@@ -75,6 +84,32 @@ name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
+
+[[package]]
+name = "derivative"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "dot-matrix-badge"
+version = "0.1.0"
+dependencies = [
+ "atmega-hal",
+ "avr-device",
+ "avr-progmem",
+ "bitflags",
+ "embedded-hal 1.0.0",
+ "nb 1.1.0",
+ "panic-halt",
+ "proc-macro2",
+ "ufmt",
+]
 
 [[package]]
 name = "embedded-hal"
@@ -109,19 +144,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "723dce4e9f25b6e6c5f35628e144794e5b459216ed7da97b7c4b66cdb3fa82ca"
 
 [[package]]
-name = "name-badge"
-version = "0.1.0"
-dependencies = [
- "atmega-hal",
- "avr-device",
- "embedded-hal 1.0.0",
- "nb 1.1.0",
- "panic-halt",
- "proc-macro2",
- "ufmt",
-]
-
-[[package]]
 name = "nb"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -138,9 +160,9 @@ checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
 
 [[package]]
 name = "panic-halt"
-version = "0.2.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de96540e0ebde571dc55c73d60ef407c653844e6f9a1e2fdbd40c07b9252d812"
+checksum = "a513e167849a384b7f9b746e517604398518590a9142f4846a32e3c2a4de7b11"
 
 [[package]]
 name = "paste"
@@ -165,12 +187,6 @@ checksum = "0fa76aaf39101c457836aec0ce2316dbdc3ab723cdda1c6bd4e6ad4208acaca7"
 dependencies = [
  "proc-macro2",
 ]
-
-[[package]]
-name = "rustversion"
-version = "1.0.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7c45b9784283f1b2e7fb61b42047c2fd678ef0960d4f6f1eba131594cc369d4"
 
 [[package]]
 name = "syn"
