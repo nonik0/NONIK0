@@ -41,6 +41,7 @@ bitflags! {
 // // values in bitfield are linearly mapped, no enum needed
 pub const MAX_BRIGHTNESS: u8 = 15;
 pub const DEFAULT_BRIGHTNESS: u8 = 12;
+pub const DEFAULT_CURRENT: u8 = ControlWord0::CURRENT_4_0MA.bits();
 
 // #[repr(u8)]
 // #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +65,7 @@ pub const DEFAULT_BRIGHTNESS: u8 = 12;
 
 bitflags! {
     pub struct ControlWord1: u8 {
-        const SELECT = 0b0000_0000;
+        const SELECT = 0b1000_0000;
         //const DATA_OUT = 0b0000_0001; // low: serial, high: simultaneous
         const DATA_OUT_SERIAL = 0b0000_0000;
         const DATA_OUT_SIMULTANEOUS = 0b0000_0001;
@@ -73,6 +74,8 @@ bitflags! {
         const EXT_OSC_PRESCALER_PRESCALE8 = 0b0000_0010;
     }
 }
+
+pub const DEFAULT_DATA_OUT_MODE: u8 = ControlWord1::DATA_OUT_SIMULTANEOUS.bits();
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

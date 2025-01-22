@@ -1,5 +1,5 @@
-use core::cell::RefCell;
 use constants::{ControlWord0, ControlWord1};
+use core::cell::RefCell;
 use embedded_hal::digital::{self, ErrorType, OutputPin};
 
 type Hcms29xxErr<Pin> = Hcms29xxError<<Pin as ErrorType>::Error>;
@@ -92,16 +92,13 @@ where
         let font_data = font5x7::FONT5X7.load();
         self.font_ascii_index = Some(font_data[0] - 1);
 
-        self.control_word_0 = ControlWord0::SELECT.bits() | ControlWord0::NORMAL_OPERATION.bits() | ControlWord0::CURRENT_4_0MA.bits() | constants::DEFAULT_BRIGHTNESS;
-
-        self.set_control_data()?;
-        for _ in 0..(self.num_chars / constants::DEVICE_CHARS) {
-            self.send_byte(self.control_word_0)?;
-        }
-        self.end_transfer()?;
-    
-        self.control_word_1 = ControlWord1::SELECT.bits();
-        // This has the side-effect of setting the default value for control word 1
+        self.update_control_word(
+            ControlWord0::SELECT.bits()
+                | ControlWord0::NORMAL_OPERATION.bits()
+                | constants::DEFAULT_CURRENT
+                | constants::DEFAULT_BRIGHTNESS,
+        )?;
+        self.update_control_word(ControlWord1::SELECT.bits() | constants::DEFAULT_DATA_OUT_MODE)?;
 
         Ok(())
     }
@@ -115,10 +112,55 @@ where
         Ok(())
     }
 
-    // fn set_data_out_mode(&mut self, mode: DataOutMode) -> Result<(), Hcms29xxErr<Pin>> {
-    //     let 
+    // pub fn print_ascii_slice(&mut self, ascii: &[u8]) -> Result<(), Hcms29xxErr<Pin>> {
+    //     self.set_dot_data()?;
+    //     for i in 0..ascii.len() {
+    //         let font_data = font5x7::FONT5X7.load();
+    //         let ascii_index = ascii[i] as usize;
+    //         let font_index = (ascii_index - self.font_ascii_index.unwrap()) * constants::CHAR_WIDTH;
+    //         for j in 0..constants::CHAR_WIDTH {
+    //             self.send_byte(font_data[font_index + j])?;
+    //         }
+    //     }
+    //     self.end_transfer()?;
     //     Ok(())
     // }
+
+    // fn set_data_out_serial_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+    //     self.update_control_word(
+    //         self.control_word_1 & !ControlWord1::DATA_OUT_SIMULTANEOUS.bits(),
+    //     )?;
+    //     Ok(())
+    // }
+
+    // fn set_data_out_simultaneous_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+    //     self.update_control_word(self.control_word_1 | ControlWord1::DATA_OUT_SIMULTANEOUS.bits())?;
+    //     Ok(())
+    // }
+
+    fn update_control_word(&mut self, control_word: u8) -> Result<(), Hcms29xxErr<Pin>> {
+        // read current data out mode before potentially changing it
+        let times_to_send =
+            if (self.control_word_1 & ControlWord1::DATA_OUT_SIMULTANEOUS.bits()) != 0 {
+                1
+            } else {
+                self.num_chars / constants::DEVICE_CHARS
+            };
+
+        self.set_control_data()?;
+        for _ in 0..times_to_send {
+            self.send_byte(control_word)?;
+        }
+        self.end_transfer()?;
+
+        if control_word & ControlWord1::SELECT.bits() != 0 {
+            self.control_word_1 = control_word;
+        } else {
+            self.control_word_0 = control_word;
+        }
+
+        Ok(())
+    }
 
     fn set_dot_data(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         self.clk.borrow_mut().set_high()?;
