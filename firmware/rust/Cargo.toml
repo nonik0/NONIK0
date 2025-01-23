@@ -19,10 +19,10 @@ embedded-hal = "1.0"
 avr-device = { version = "0.7.0", features = ["rt"] }
 avr-progmem = "0.4.0"
 
-[dependencies.atmega-hal]
-git = "https://github.com/rahix/avr-hal"
-rev = "d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3"
-features = ["atmega32u4"]
+[dependencies.arduino-hal]
+git = "https://github.com/nonik0/avr-hal"
+branch = "feather-basic"
+features = ["arduino-uno"]
 
 # The latest releases of `proc-macro2` do not support the rust toolchain that
 # we use.  Thus, we must fix this dependency to an older version where our

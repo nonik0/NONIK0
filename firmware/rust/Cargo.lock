@@ -3,9 +3,23 @@
 version = 3
 
 [[package]]
+name = "arduino-hal"
+version = "0.1.0"
+source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
+dependencies = [
+ "atmega-hal",
+ "avr-device",
+ "avr-hal-generic",
+ "cfg-if",
+ "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0",
+ "ufmt",
+]
+
+[[package]]
 name = "atmega-hal"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3#d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3"
+source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
@@ -37,7 +51,7 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
-source = "git+https://github.com/rahix/avr-hal?rev=d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3#d02ab21d17f06baadb5c0f2abf7cf3ea9c0a35b3"
+source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
 dependencies = [
  "avr-device",
  "embedded-hal 0.2.7",
@@ -100,7 +114,7 @@ dependencies = [
 name = "dot-matrix-badge"
 version = "0.1.0"
 dependencies = [
- "atmega-hal",
+ "arduino-hal",
  "avr-device",
  "avr-progmem",
  "bitflags",

@@ -40,14 +40,13 @@ where
     osc_sel: Option<RefCell<Pin>>,
     control_word_0: u8,
     control_word_1: u8,
-    font_ascii_index: Option<u8>,
+    font_ascii_start_index: u8,
 }
 
 impl<Pin> Hcms29xx<Pin>
 where
     Pin: OutputPin,
 {
-    /// Creates a new SIPO shift register from clock, latch, and data output pins
     pub fn new(
         num_chars: usize,
         data: Pin,
@@ -64,6 +63,9 @@ where
         //     blank.set_high().unwrap();
         // }
 
+        let font_data = font5x7::FONT5X7.load();
+        let font_ascii_start_index = font_data[0] - 1;
+
         let new_hcms = Hcms29xx {
             num_chars: num_chars as u8,
             data: RefCell::new(data),
@@ -74,7 +76,7 @@ where
             osc_sel: osc_sel.map(RefCell::new),
             control_word_0: 0,
             control_word_1: 0,
-            font_ascii_index: None,
+            font_ascii_start_index: font_ascii_start_index,
         };
 
         new_hcms.data.borrow_mut().set_low()?;
@@ -88,9 +90,6 @@ where
 
     pub fn begin(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         self.clear()?;
-
-        let font_data = font5x7::FONT5X7.load();
-        self.font_ascii_index = Some(font_data[0] - 1);
 
         self.update_control_word(
             ControlWord0::SELECT.bits()
@@ -112,19 +111,58 @@ where
         Ok(())
     }
 
-    // pub fn print_ascii_slice(&mut self, ascii: &[u8]) -> Result<(), Hcms29xxErr<Pin>> {
-    //     self.set_dot_data()?;
-    //     for i in 0..ascii.len() {
-    //         let font_data = font5x7::FONT5X7.load();
-    //         let ascii_index = ascii[i] as usize;
-    //         let font_index = (ascii_index - self.font_ascii_index.unwrap()) * constants::CHAR_WIDTH;
-    //         for j in 0..constants::CHAR_WIDTH {
-    //             self.send_byte(font_data[font_index + j])?;
-    //         }
-    //     }
-    //     self.end_transfer()?;
-    //     Ok(())
-    // }
+    pub fn print_c_string(&mut self, c_str: &[u8]) -> Result<(), Hcms29xxErr<Pin>> {
+        self.set_dot_data()?;
+        let font_data = font5x7::FONT5X7.load(); // TODO: does load cost anything?
+        for i in 0..self.num_chars {
+            if i >= c_str.len() as u8 || c_str[i as usize] < self.font_ascii_start_index {
+                break;
+            }
+            let char_start_index =
+                (c_str[i as usize] - self.font_ascii_start_index) * constants::CHAR_WIDTH;
+            for j in 0..constants::CHAR_WIDTH {
+                self.send_byte(font_data[(char_start_index + j) as usize])?;
+            }
+        }
+        self.end_transfer()?;
+        Ok(())
+    }
+
+    pub fn display_blank(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        if let Some(ref blank) = self.blank {
+            blank.borrow_mut().set_high()?;
+        }
+        Ok(())
+    }
+
+    pub fn display_unblank(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        if let Some(ref blank) = self.blank {
+            blank.borrow_mut().set_low()?;
+        }
+        Ok(())
+    }
+
+    pub fn set_brightness(&mut self, brightness: u8) -> Result<(), Hcms29xxErr<Pin>> {
+        self.update_control_word(
+            self.control_word_0 & !ControlWord0::BRIGHTNESS_MASK.bits()
+                | (brightness & ControlWord0::BRIGHTNESS_MASK.bits()),
+        )?;
+        Ok(())
+    }
+
+    pub fn set_ext_osc(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        if let Some(ref osc_sel) = self.osc_sel {
+            osc_sel.borrow_mut().set_high()?;
+        }
+        Ok(())
+    }
+
+    pub fn set_int_osc(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        if let Some(ref osc_sel) = self.osc_sel {
+            osc_sel.borrow_mut().set_low()?;
+        }
+        Ok(())
+    }
 
     // fn set_data_out_serial_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
     //     self.update_control_word(
@@ -195,28 +233,3 @@ where
         Ok(())
     }
 }
-
-// /// Get embedded-hal output pins to control the shift register outputs
-// pub fn decompose(&self) -> [ShiftRegisterPin<'_, Pin1, Pin2, Pin3, N>; N] {
-//     core::array::from_fn(|i| ShiftRegisterPin::<'_, Pin1, Pin2, Pin3, N>::new(self, i))
-// }
-
-// /// Consume the shift register and return the original clock, latch, and data output pins
-// pub fn release(self) -> (Pin1, Pin2, Pin3) {
-//     let Self {
-//         clock,
-//         latch,
-//         data,
-//         output_state: _,
-//     } = self;
-//     (clock.into_inner(), latch.into_inner(), data.into_inner())
-// }
-
-// fn update(
-//     &self,
-//     index: usize,
-//     command: bool,
-// ) -> Result<
-//     (),
-//     SRErr<Pin1, Pin2, Pin3>,
-// > {
