@@ -1,6 +1,8 @@
+#![allow(dead_code)]
+
 use constants::{ControlWord0, ControlWord1};
 use core::cell::RefCell;
-use embedded_hal::digital::{self, ErrorType, OutputPin};
+use embedded_hal::digital::{ErrorType, OutputPin};
 
 type Hcms29xxErr<Pin> = Hcms29xxError<<Pin as ErrorType>::Error>;
 
@@ -56,36 +58,31 @@ where
         blank: Option<Pin>,
         osc_sel: Option<Pin>,
     ) -> Result<Self, Hcms29xxErr<Pin>> {
-        // TODO
-        // data.set_low().unwrap();
-        // ce.set_high().unwrap();
-        // if let Some(ref blank) = blank {
-        //     blank.set_high().unwrap();
-        // }
+        let data_ref_cell = RefCell::new(data);
+        let rs_ref_cell = RefCell::new(rs);
+        let clk_ref_cell = RefCell::new(clk);
+        let ce_ref_cell = RefCell::new(ce);
+        let blank_ref_cell = blank.map(RefCell::new);
+        let osc_sel_ref_cell = osc_sel.map(RefCell::new);
 
-        let font_data = font5x7::FONT5X7.load();
-        let font_ascii_start_index = font_data[0] - 1;
-
-        let new_hcms = Hcms29xx {
-            num_chars: num_chars as u8,
-            data: RefCell::new(data),
-            rs: RefCell::new(rs),
-            clk: RefCell::new(clk),
-            ce: RefCell::new(ce),
-            blank: blank.map(RefCell::new),
-            osc_sel: osc_sel.map(RefCell::new),
-            control_word_0: 0,
-            control_word_1: 0,
-            font_ascii_start_index: font_ascii_start_index,
-        };
-
-        new_hcms.data.borrow_mut().set_low()?;
-        new_hcms.ce.borrow_mut().set_high()?;
-        if let Some(ref blank) = new_hcms.blank {
+        data_ref_cell.borrow_mut().set_low()?;
+        ce_ref_cell.borrow_mut().set_high()?;
+        if let Some(ref blank) = blank_ref_cell {
             blank.borrow_mut().set_high()?;
         }
 
-        Ok(new_hcms)
+        Ok(Hcms29xx {
+            num_chars: num_chars as u8,
+            data: data_ref_cell,
+            rs: rs_ref_cell,
+            clk: clk_ref_cell,
+            ce: ce_ref_cell,
+            blank: blank_ref_cell,
+            osc_sel: osc_sel_ref_cell,
+            control_word_0: 0,
+            control_word_1: 0,
+            font_ascii_start_index: font5x7::FONT5X7.load_at(0) - 1,
+        })
     }
 
     pub fn begin(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
@@ -104,7 +101,7 @@ where
 
     pub fn clear(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         self.set_dot_data()?;
-        for i in 0..self.num_chars * constants::CHAR_WIDTH {
+        for _ in 0..self.num_chars * constants::CHAR_WIDTH as u8 {
             self.send_byte(0x00)?;
         }
         self.end_transfer()?;
@@ -113,15 +110,14 @@ where
 
     pub fn print_c_string(&mut self, c_str: &[u8]) -> Result<(), Hcms29xxErr<Pin>> {
         self.set_dot_data()?;
-        let font_data = font5x7::FONT5X7.load(); // TODO: does load cost anything?
         for i in 0..self.num_chars {
             if i >= c_str.len() as u8 || c_str[i as usize] < self.font_ascii_start_index {
                 break;
             }
-            let char_start_index =
-                (c_str[i as usize] - self.font_ascii_start_index) * constants::CHAR_WIDTH;
+            let char_start_index: usize =
+                (c_str[i as usize] - self.font_ascii_start_index) as usize * constants::CHAR_WIDTH;
             for j in 0..constants::CHAR_WIDTH {
-                self.send_byte(font_data[(char_start_index + j) as usize])?;
+                self.send_byte(font5x7::FONT5X7.load_at(char_start_index + j as usize))?;
             }
         }
         self.end_transfer()?;
@@ -132,6 +128,20 @@ where
         if let Some(ref blank) = self.blank {
             blank.borrow_mut().set_high()?;
         }
+        Ok(())
+    }
+
+    pub fn display_sleep(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        self.update_control_word(
+            self.control_word_0 & !ControlWord0::NORMAL_OPERATION.bits(),
+        )?;
+        Ok(())
+    }
+
+    pub fn display_wake(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        self.update_control_word(
+            self.control_word_0 | ControlWord0::NORMAL_OPERATION.bits(),
+        )?;
         Ok(())
     }
 
@@ -152,29 +162,29 @@ where
 
     pub fn set_ext_osc(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         if let Some(ref osc_sel) = self.osc_sel {
-            osc_sel.borrow_mut().set_high()?;
+            osc_sel.borrow_mut().set_low()?;
         }
         Ok(())
     }
 
     pub fn set_int_osc(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         if let Some(ref osc_sel) = self.osc_sel {
-            osc_sel.borrow_mut().set_low()?;
+            osc_sel.borrow_mut().set_high()?;
         }
         Ok(())
     }
 
-    // fn set_data_out_serial_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
-    //     self.update_control_word(
-    //         self.control_word_1 & !ControlWord1::DATA_OUT_SIMULTANEOUS.bits(),
-    //     )?;
-    //     Ok(())
-    // }
+    pub fn set_data_out_serial_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        self.update_control_word(
+            self.control_word_1 & !ControlWord1::DATA_OUT_SIMULTANEOUS.bits(),
+        )?;
+        Ok(())
+    }
 
-    // fn set_data_out_simultaneous_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
-    //     self.update_control_word(self.control_word_1 | ControlWord1::DATA_OUT_SIMULTANEOUS.bits())?;
-    //     Ok(())
-    // }
+    pub fn set_data_out_simultaneous_mode(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
+        self.update_control_word(self.control_word_1 | ControlWord1::DATA_OUT_SIMULTANEOUS.bits())?;
+        Ok(())
+    }
 
     fn update_control_word(&mut self, control_word: u8) -> Result<(), Hcms29xxErr<Pin>> {
         // read current data out mode before potentially changing it
@@ -182,7 +192,7 @@ where
             if (self.control_word_1 & ControlWord1::DATA_OUT_SIMULTANEOUS.bits()) != 0 {
                 1
             } else {
-                self.num_chars / constants::DEVICE_CHARS
+                self.num_chars / constants::DEVICE_CHARS as u8
             };
 
         self.set_control_data()?;

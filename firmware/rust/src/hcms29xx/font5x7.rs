@@ -3,14 +3,14 @@ use avr_progmem::progmem;
 progmem! {
     pub static progmem FONT5X7: [u8;770] = [
 
-    //  Character 0x00 is not printable since 0x00 is used to indicate NULL terminator in c-strings
-    //  So use the first bitmap slot (5 elements) in the array to specify the Font meta-data:
-    //  ASCII offset, last ASCII character, don't care, don't care, don't care
-    //  ASCII offset is the ASCII value of the first defined bitmap in this table. It should never be less than 1.
+        //  Character 0x00 is not printable since 0x00 is used to indicate NULL terminator in c-strings
+        //  So use the first bitmap slot (5 elements) in the array to specify the Font meta-data:
+        //  ASCII offset, last ASCII character, don't care, don't care, don't care
+        //  ASCII offset is the ASCII value of the first defined bitmap in this table. It should never be less than 1.
         0x01, 0x99, 0x00, 0x00, 0x00, // 0x00
 
-    // The first 32 ASCII codes (0x00 to 0x1F) are normally non-printable control characters.
-    // So use these slots for characters not defined by ASCII
+        // The first 32 ASCII codes (0x00 to 0x1F) are normally non-printable control characters.
+        // So use these slots for characters not defined by ASCII
         0x30, 0x48, 0x45, 0x40, 0x20, // 0x01 (inverted question mark) - changed from 0x30, 0x45, 0x48, 0x40, 0x30
         0x45, 0x29, 0x11, 0x29, 0x45, // 0x02 (x bar)
         0x7D, 0x09, 0x11, 0x21, 0x7D, // 0x03 (N bar)
@@ -42,7 +42,7 @@ progmem! {
         0x12, 0x19, 0x15, 0x12, 0x00, // 0x1D (squared, superscript 2)
         0x48, 0x7E, 0x49, 0x41, 0x42, // 0x1E (pound sterling)
         0x01, 0x12, 0x7C, 0x12, 0x01, // 0x1F (yen)
-    // Standard printable ASCII characters start at 32 (0x20)
+        // Standard printable ASCII characters start at 32 (0x20)
         0x00, 0x00, 0x00, 0x00, 0x00, // 0x20 (space)
         0x00, 0x5F, 0x00, 0x00, 0x00, // 0x21 !
         0x00, 0x03, 0x00, 0x03, 0x00, // 0x22 "
@@ -142,7 +142,7 @@ progmem! {
         // Additional user-defined characters can be added here, up to 0xFF (i.e., 8-bits for a max of 255 character definitions)
         // Be sure to update index 1 (line 32 above, second value in the "00" definition) with the updated highest supported character value when adding characters.
 
-        /// Extra characters
+        // Extra characters
         0x2A, 0x55, 0x2A, 0x55, 0x2A, // 0x80 Every other pixel on/off
         0x08, 0x1C, 0x3E, 0x7F, 0x00, // 0x81 Left pointing triangle
         0x00, 0x7F, 0x3E, 0x1C, 0x08, // 0x82 Right pointing triangle

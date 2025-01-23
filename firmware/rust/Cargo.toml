@@ -22,7 +22,8 @@ avr-progmem = "0.4.0"
 [dependencies.arduino-hal]
 git = "https://github.com/nonik0/avr-hal"
 branch = "feather-basic"
-features = ["arduino-uno"]
+features = ["feather-32u4"]
+#features = ["arduino-uno"]
 
 # The latest releases of `proc-macro2` do not support the rust toolchain that
 # we use.  Thus, we must fix this dependency to an older version where our

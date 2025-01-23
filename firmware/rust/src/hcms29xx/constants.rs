@@ -1,8 +1,8 @@
 use bitflags::bitflags;
 
-pub const CHAR_WIDTH: u8 = 5;
-pub const CHAR_HEIGHT: u8 = 7;
-pub const DEVICE_CHARS: u8 = 4;
+pub const CHAR_WIDTH: usize = 5;
+pub const CHAR_HEIGHT: usize = 7;
+pub const DEVICE_CHARS: usize = 4;
 
 //
 // define the bitflags fto select control word 0 or 1
