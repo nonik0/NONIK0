@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use core::cell::RefCell;
-use embedded_hal::digital::{ErrorType, OutputPin};
+use constants::control_word_0::current;
+use embedded_hal::digital::{self, ErrorType, OutputPin};
 
 type Hcms29xxErr<Pin> = Hcms29xxError<<Pin as ErrorType>::Error>;
 
@@ -19,14 +20,14 @@ impl<PinError> From<PinError> for Hcms29xxError<PinError> {
     }
 }
 
-// impl<E> digital::Error for Hcms29xxError<E>
-// where
-//     E: core::fmt::Debug,
-// {
-//     fn kind(&self) -> digital::ErrorKind {
-//         digital::ErrorKind::Other
-//     }
-// }
+impl<E> digital::Error for Hcms29xxError<E>
+where
+    E: core::fmt::Debug,
+{
+    fn kind(&self) -> digital::ErrorKind {
+        digital::ErrorKind::Other
+    }
+}
 
 pub struct Hcms29xx<Pin>
 where
@@ -71,6 +72,10 @@ where
         ce_ref_cell.borrow_mut().set_high()?;
         if let Some(ref blank) = blank_ref_cell {
             blank.borrow_mut().set_high()?;
+        }
+        // default to internal oscillator, user can set ext osc if needed
+        if let Some(ref osc_sel) = osc_sel_ref_cell {
+            osc_sel.borrow_mut().set_high()?;
         }
         if let Some(ref reset) = reset_ref_cell {
             reset.borrow_mut().set_high()?;
@@ -131,6 +136,23 @@ where
         Ok(())
     }
 
+    pub fn print_u32(&mut self, value: u32) -> Result<(), Hcms29xxErr<Pin>> {
+        let mut buf = [0; 10]; // u32 max base-10 digits
+    
+        let mut value = value;
+        for index in (0..self.num_chars).rev() {
+            buf[index as usize] = if value > 0 {
+                (b'0' + (value % 10) as u8) as u8
+            } else {
+                b' ' as u8
+            };
+            value /= 10;
+        }
+        self.print_c_string(&buf[..self.num_chars as usize])?;
+
+        Ok(())
+    }
+
     pub fn display_blank(&mut self) -> Result<(), Hcms29xxErr<Pin>> {
         if let Some(ref blank) = self.blank {
             blank.borrow_mut().set_high()?;
@@ -159,6 +181,21 @@ where
         self.update_control_word(
             (self.control_word_0 & !constants::control_word_0::BRIGHTNESS_MASK)
                 | (brightness & constants::control_word_0::BRIGHTNESS_MASK),
+        )?;
+        Ok(())
+    }
+
+    pub fn set_current(&mut self, current: u8) -> Result<(), Hcms29xxErr<Pin>> {
+        let current = match current {
+            0 => current::MAX_4_0MA,
+            1 => current::MAX_6_4MA,
+            2 => current::MAX_9_3MA,
+            _ => current::MAX_12_8MA
+        };
+
+        self.update_control_word(
+            (self.control_word_0 & !constants::control_word_0::CURRENT_MASK)
+                | (current & constants::control_word_0::CURRENT_MASK),
         )?;
         Ok(())
     }

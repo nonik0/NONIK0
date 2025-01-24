@@ -14,10 +14,10 @@ pub mod control_word_0 {
     pub const DEFAULT_CURRENT: u8 = current::MAX_4_0MA;
 
     pub mod current {
-        pub const MAX_2_0MA: u8 = 0b0000_0000;
-        pub const MAX_3_2MA: u8 = 0b0001_0000;
         pub const MAX_4_0MA: u8 = 0b0010_0000;
-        pub const MAX_6_4MA: u8 = 0b0011_0000;
+        pub const MAX_6_4MA: u8 = 0b0001_0000;
+        pub const MAX_9_3MA: u8 = 0b0000_0000;
+        pub const MAX_12_8MA: u8 = 0b0011_0000;
     }
 }
 
