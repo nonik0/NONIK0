@@ -1,92 +1,29 @@
-use bitflags::bitflags;
-
 pub const CHAR_WIDTH: usize = 5;
 pub const CHAR_HEIGHT: usize = 7;
 pub const DEVICE_CHARS: usize = 4;
 
-//
-// define the bitflags fto select control word 0 or 1
-//
+pub const CONTROL_WORD_SELECT_BIT: u8 = 0b1000_0000; // low: control word 0, high: control word 1
 
-//pub const CONTROL_WORD_SELECT_MASK: u8 = 0b1000_0000;
-// pub const CONTROL_WORD_1: u8 = 0b0000_0000;
-// pub const CONTROL_WORD_2: u8 = 0b1000_0000;
+pub mod control_word_0 {
+    pub const BRIGHTNESS_MASK: u8 = 0b0000_1111;
+    pub const CURRENT_MASK: u8 = 0b0011_0000;
+    pub const WAKE_BIT: u8 = 0b0100_0000;
 
-// #[repr(u8)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum Select {
-//     ControlWord0 = 0b0,
-//     ControlWord1 = 0b1,
-// }
+    pub const MAX_BRIGHTNESS: u8 = 15;
+    pub const DEFAULT_BRIGHTNESS: u8 = 12;
+    pub const DEFAULT_CURRENT: u8 = current::MAX_4_0MA;
 
-//
-// define the bitflags for control word 0
-//
-
-bitflags! {
-    pub struct ControlWord0: u8 {
-        const SELECT = 0b0000_0000;
-        const BRIGHTNESS_MASK = 0b0000_1111;
-        //const CURRENT_MASK = 0b0011_0000;
-        const CURRENT_4_0MA = 0b0010_0000;
-        const CURRENT_6_4MA = 0b0001_0000;
-        const CURRENT_9_3MA = 0b0000_0000;
-        const CURRENT_12_8MA = 0b0011_0000;
-        //const SLEEP_MASK = 0b0100_0000;
-        const NORMAL_OPERATION = 0b0100_0000;
-        const SLEEP = 0b0000_0000;
+    pub mod current {
+        pub const MAX_2_0MA: u8 = 0b0000_0000;
+        pub const MAX_3_2MA: u8 = 0b0001_0000;
+        pub const MAX_4_0MA: u8 = 0b0010_0000;
+        pub const MAX_6_4MA: u8 = 0b0011_0000;
     }
 }
 
-// // values in bitfield are linearly mapped, no enum needed
-pub const MAX_BRIGHTNESS: u8 = 15;
-pub const DEFAULT_BRIGHTNESS: u8 = 12;
-pub const DEFAULT_CURRENT: u8 = ControlWord0::CURRENT_4_0MA.bits();
+pub mod control_word_1 {
+    pub const DATA_OUT_BIT: u8 = 0b0000_0001; // low: serial, high: simultaneous
+    pub const EXT_OSC_PRESCALER_BIT: u8 = 0b0000_0010; // low: clock/1, clock/8
 
-// #[repr(u8)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum PeakCurrent {
-//     Current4_0mA = 0b10,
-//     Current6_4mA = 0b01,
-//     Current9_3mA = 0b00,
-//     Current12_8mA = 0b11,
-// }
-
-// #[repr(u8)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum SleepMode {
-//     Sleep = 0b0, // int oscillator off, display blanked
-//     NormalOperation = 0b1,
-// }
-
-//
-// define the bitflags for control word 1
-//
-
-bitflags! {
-    pub struct ControlWord1: u8 {
-        const SELECT = 0b1000_0000;
-        //const DATA_OUT = 0b0000_0001; // low: serial, high: simultaneous
-        const DATA_OUT_SERIAL = 0b0000_0000;
-        const DATA_OUT_SIMULTANEOUS = 0b0000_0001;
-        //const EXT_OSC_PRESCALER = 0b0000_0010; // low: clock/1, clock/8
-        const EXT_OSC_PRESCALER_DIRECT = 0b0000_0000;
-        const EXT_OSC_PRESCALER_PRESCALE8 = 0b0000_0010;
-    }
+    pub const DEFAULT_DATA_OUT_MODE: u8 = DATA_OUT_BIT;
 }
-
-pub const DEFAULT_DATA_OUT_MODE: u8 = ControlWord1::DATA_OUT_SIMULTANEOUS.bits();
-
-#[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DataOutMode {
-    Serial = 0b0,
-    Simultaneous = 0b1,
-}
-
-// #[repr(u8)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum ExtOscPrescaler {
-//     Direct = 0b0,
-//     Prescale8 = 0b1,
-// }
