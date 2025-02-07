@@ -3346,6 +3346,28 @@
 	)
 	(global_label "CE"
 		(shape input)
+		(at 119.38 35.56 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "4183771c-281b-4b1f-b562-a355af2d7991")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 124.7842 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "CE"
+		(shape input)
 		(at 30.48 53.34 180)
 		(fields_autoplaced yes)
 		(effects
@@ -3608,28 +3630,6 @@
 			)
 		)
 	)
-	(global_label "CLK"
-		(shape input)
-		(at 119.38 35.56 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "8b226afd-a6bd-4d92-af57-1f66d4611be1")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 125.9333 35.56 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
 	(global_label "OSC"
 		(shape input)
 		(at 119.38 43.18 0)
@@ -3643,6 +3643,28 @@
 		(uuid "94c9293c-750d-4a20-9e43-9dbad62f11d0")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 126.1752 43.18 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(global_label "CLK"
+		(shape input)
+		(at 119.38 38.1 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "9a2fff18-e45e-4b46-be2b-ad9df0ba9593")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 125.9333 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -3687,28 +3709,6 @@
 		(uuid "ad0d7ee2-44e0-4f29-bd8e-0db3316a839e")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 127.1428 48.26 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(global_label "CE"
-		(shape input)
-		(at 119.38 38.1 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "b8f46bd6-6ef3-4fb4-a973-b6245386a8a6")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 124.7842 38.1 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -3963,7 +3963,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "LED_SMD:LED_0603_1608Metric"
+		(property "Footprint" "DotMatrixBadge:LED_0603_1608Metric"
 			(at 118.11 110.49 0)
 			(effects
 				(font
@@ -4175,7 +4175,7 @@
 				(hide yes)
 			)
 		)
-		(property "Footprint" "Button_Switch_SMD:SW_SPDT_PCM12"
+		(property "Footprint" "DotMatrixBadge:SW_SPDT_PCM12"
 			(at 48.26 97.79 0)
 			(effects
 				(font
@@ -4816,7 +4816,7 @@
 				(justify right)
 			)
 		)
-		(property "Footprint" "Resistor_SMD:R_0603_1608Metric"
+		(property "Footprint" "DotMatrixBadge:R_0603_1608Metric"
 			(at 109.601 106.172 0)
 			(effects
 				(font
@@ -4951,7 +4951,7 @@
 				(hide yes)
 			)
 		)
-		(property "Footprint" "Battery:BatteryHolder_Keystone_3034_1x20mm"
+		(property "Footprint" "DotMatrixBadge:BatteryHolder_Keystone_3034_1x20mm"
 			(at 48.26 106.426 90)
 			(effects
 				(font
@@ -6013,7 +6013,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Package_SO:SOIC-14_3.9x8.7mm_P1.27mm"
+		(property "Footprint" "DotMatrixBadge:SOIC-14_3.9x8.7mm_P1.27mm"
 			(at 104.14 40.64 0)
 			(effects
 				(font
