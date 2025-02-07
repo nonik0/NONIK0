@@ -1,0 +1,137 @@
+(footprint "UPDI_Pads"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr "Jumper 2.54mm pitch 0.7mm hole diameter, Alternate KiCad Library")
+	(tags "Jumper 2.54mm")
+	(property "Reference" "REF**"
+		(at 1.27 -1.92 0)
+		(layer "F.SilkS")
+		(uuid "8c1fefaa-f215-4607-9df6-7f01e51be8f6")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "UPDI_Pads"
+		(at 2.35 2 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "dd36d174-0ada-4678-9f43-1df466b59691")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8066f8f5-01e9-463c-9ea1-8e70b5eb3d27")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "5322ebbd-8566-43a8-a8db-6cfc10cb91f3")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c8a08057-f214-4428-862b-371266c123d6")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -1.05 -1.05)
+		(end -1.05 1.05)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "264a73b0-57b7-4efe-a8ce-17d89b6b0a62")
+	)
+	(fp_line
+		(start -1.05 1.05)
+		(end 6.13 1.05)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "70150054-4fbe-4d5b-8666-76c4e6a9dce3")
+	)
+	(fp_line
+		(start 6.13 -1.05)
+		(end -1.05 -1.05)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "ab5b96e8-5572-4447-af38-bb1d006116d3")
+	)
+	(fp_line
+		(start 6.13 1.05)
+		(end 6.13 -1.05)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "ad068850-d331-4cc3-a6b6-eaf1f36e6069")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 1.27 -1.92 0)
+		(layer "F.Fab")
+		(uuid "0954105b-c331-4e10-b806-f8bcd168ae4e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" smd circle
+		(at 0 0)
+		(size 1.4 1.4)
+		(layers "F.Cu" "F.Mask")
+		(uuid "0b80e1e0-42d3-414b-98b0-606dd2e659d8")
+	)
+	(pad "2" smd circle
+		(at 2.54 0)
+		(size 1.4 1.4)
+		(layers "F.Cu" "F.Mask")
+		(uuid "a8d5e4ba-b6e2-4f9e-8d14-de890be8b209")
+	)
+	(pad "3" smd circle
+		(at 5.08 0)
+		(size 1.4 1.4)
+		(layers "F.Cu" "F.Mask")
+		(uuid "2e5a54ab-212a-4270-b5ca-8579d2aece66")
+	)
+)
