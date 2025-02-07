@@ -445,8 +445,12 @@
     }
   },
   "libraries": {
-    "pinned_footprint_libs": [],
-    "pinned_symbol_libs": []
+    "pinned_footprint_libs": [
+      "DotMatrixBadge"
+    ],
+    "pinned_symbol_libs": [
+      "DotMatrixBadge"
+    ]
   },
   "meta": {
     "filename": "dot-matrix-badge.kicad_pro",

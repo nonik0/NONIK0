@@ -128,7 +128,7 @@
 		(layers "F.Cu" "F.Mask")
 		(uuid "a8d5e4ba-b6e2-4f9e-8d14-de890be8b209")
 	)
-	(pad "6" smd circle
+	(pad "3" smd circle
 		(at 5.08 0)
 		(size 1.4 1.4)
 		(layers "F.Cu" "F.Mask")
