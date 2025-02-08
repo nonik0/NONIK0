@@ -1,12 +1,12 @@
 [package]
-name = "dot-matrix-badge"
+name = "NONIK0"
 version = "0.1.0"
 authors = ["Nick Brown <nworbn@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [[bin]]
-name = "dot-matrix-badge"
+name = "NONIK0"
 test = false
 bench = false
 
@@ -19,6 +19,7 @@ embedded-hal = "1.0"
 avr-device = { version = "0.7.0", features = ["rt"] }
 avr-progmem = "0.4.0"
 
+# TODO: split out feather impl into feature
 [dependencies.arduino-hal]
 git = "https://github.com/nonik0/avr-hal"
 branch = "feather-basic"

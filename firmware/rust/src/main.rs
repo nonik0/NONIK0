@@ -36,6 +36,10 @@ fn main() -> ! {
     display.set_current(1).unwrap();
     //display.set_int_osc().unwrap(); now default
 
+    // test max current/power draw
+    // display.set_current(crate::hcms29xx::constants::control_word_0::current::MAX_12_8MA).unwrap();
+    // display.set_brightness(crate::hcms29xx::constants::control_word_0::MAX_BRIGHTNESS).unwrap();
+
     let mut cursor: usize = 0;
     let mut count: u16 = 0;
     let mut buf: [u8; NUM_CHARS] = [0; NUM_CHARS];
@@ -44,7 +48,7 @@ fn main() -> ! {
         if (count % 30) == 0 {
             cursor = (cursor + 1) % MESSAGE.len();
         }
-        if (count % 100) == 0 {
+        if (count % 500) == 0 {
             led_pin.toggle();
         }
 

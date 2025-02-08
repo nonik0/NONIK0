@@ -1,5 +1,26 @@
 #include "HCMS39xx.h"
-// #include "font5x7.h"
+
+// static pins:
+// 2: OSC: NC
+// 8: BLANK: GND
+// 10: SEL: HIGH
+// 12: Reset: HIGH
+
+// pin mappings feather proto:
+// top display
+// 7 | CE       | SDA/2
+// 8 | BLANK    | SCL/3
+// 9 | GND      | 5
+// 10| SEL      | 6
+// 11| Vlogic   | 9
+// 12| Reset    | 10
+// bottom display
+// 1 | Data Out | SCK
+// 2 | OSC      | MOSI
+// 3 | Vled     | MISO
+// 4 | Data In  | RX/0
+// 5 | RS       | TX/1
+// 6 | CLK      | GND (have to cut connection and route another pin)
 
 #define NUM_CHARS 8
 
@@ -24,6 +45,8 @@ HCMS39xx dotMatrix(NUM_CHARS, DIN_PIN, RS_PIN, CLK_PIN, CE_PIN, BL_PIN, SEL_PIN)
 uint8_t displaydata[MAXLEN];
 const char *Name1 = "Stella";
 const char *Name2 = "Beau";
+
+
 
 void setup()
 {
@@ -58,44 +81,5 @@ void loop()
   uint32_t displayNumber = count1 * 10000 + count2;
   dotMatrix.print(displayNumber);
   delay(5);
-
-  // for (int i = 0; i < strlen(Name); i++)
-  // {
-  //   // need to reverse order of characters
-  //   for (int j = 0; j < strlen(Name); j++)
-  //   {
-  //     dotMatrix.print(((String)(Name[i])).c_str());
-  //   }
-  //   delay(200);
-  // }
-
-  // delay(3000);
-
-  // for (int i = 0; i < strlen(Name); i++)
-  // {
-  //   dotMatrix.print(((String)(Name2[i])).c_str());
-  //   delay(200);
-  // }
 }
 
-// static pins:
-// 2: OSC: NC
-// 8: BLANK: GND
-// 10: SEL: HIGH
-// 12: Reset: HIGH
-
-// pin mappings feather proto:
-// top display
-// 7 | CE       | SDA/2
-// 8 | BLANK    | SCL/3
-// 9 | GND      | 5
-// 10| SEL      | 6
-// 11| Vlogic   | 9
-// 12| Reset    | 10
-// bottom display
-// 1 | Data Out | SCK
-// 2 | OSC      | MOSI
-// 3 | Vled     | MISO
-// 4 | Data In  | RX/0
-// 5 | RS       | TX/1
-// 6 | CLK      | GND (have to cut connection and route another pin

@@ -3,6 +3,21 @@
 version = 3
 
 [[package]]
+name = "NONIK0"
+version = "0.1.0"
+dependencies = [
+ "arduino-hal",
+ "avr-device",
+ "avr-progmem",
+ "bitflags",
+ "embedded-hal 1.0.0",
+ "nb 1.1.0",
+ "panic-halt",
+ "proc-macro2",
+ "ufmt",
+]
+
+[[package]]
 name = "arduino-hal"
 version = "0.1.0"
 source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
@@ -108,21 +123,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "dot-matrix-badge"
-version = "0.1.0"
-dependencies = [
- "arduino-hal",
- "avr-device",
- "avr-progmem",
- "bitflags",
- "embedded-hal 1.0.0",
- "nb 1.1.0",
- "panic-halt",
- "proc-macro2",
- "ufmt",
 ]
 
 [[package]]

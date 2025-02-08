@@ -6,7 +6,7 @@ use embedded_hal::digital::{self, ErrorType, OutputPin};
 
 type Hcms29xxErr<Pin> = Hcms29xxError<<Pin as ErrorType>::Error>;
 
-mod constants;
+pub mod constants;
 mod font5x7;
 
 #[derive(Clone, Copy, Debug)]
