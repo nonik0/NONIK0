@@ -1,3 +1,4 @@
 (fp_lib_table
   (version 7)
+  (lib (name "NONIK0")(type "KiCad")(uri "${KIPRJMOD}/NONIK0.pretty")(options "")(descr ""))
 )
