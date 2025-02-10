@@ -7054,7 +7054,7 @@
 				(hide yes)
 			)
 		)
-		(property "Footprint" "Jumper:SolderJumper-3_P1.3mm_Bridged2Bar12_RoundedPad1.0x1.5mm"
+		(property "Footprint" "NONIK0:SolderJumper-2_P1.3mm_Bridged_RoundedPad1.0x1.5mm"
 			(at 62.23 132.08 0)
 			(effects
 				(font
