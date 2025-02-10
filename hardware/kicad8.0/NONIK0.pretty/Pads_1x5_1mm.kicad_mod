@@ -3,8 +3,6 @@
 	(generator "pcbnew")
 	(generator_version "8.0")
 	(layer "F.Cu")
-	(descr "Jumper 2.54mm pitch 0.7mm hole diameter, Alternate KiCad Library")
-	(tags "Jumper 2.54mm")
 	(property "Reference" "J3"
 		(at 0 -1.92 180)
 		(layer "F.SilkS")
@@ -65,7 +63,7 @@
 			)
 		)
 	)
-	(attr through_hole)
+	(attr smd)
 	(fp_line
 		(start -4.6 -0.6)
 		(end -4.6 0.6)
