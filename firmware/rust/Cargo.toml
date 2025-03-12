@@ -11,26 +11,27 @@ test = false
 bench = false
 
 [features]
-default = ["feather32u4"]
-feather32u4 = ["arduino-hal/feather-32u4"]
-attiny1604 = ["avrxmega-hal/attiny1604"]
+default = ["attiny1604"]
+#feather32u4 = ["arduino-hal/feather-32u4"]
+attiny1604 = ["avrxmega-hal/attiny1604", "avr-device/attiny1604", "avr-device/rt"]
 
 [dependencies]
-avr-device = { version = "0.7.0", features = ["rt"] }
+avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["rt"] } # built locally with attiny1604 support
 embedded-hal = "1.0"
 heapless = "0.8.0"
-#once_cell = { version = "1.20.3", default-features = false }
 nb = "1.1.0"
 panic-halt = "1.0.0"
 random-trait = "0.1.1"
 #static_cell = "2.1.0"
 ufmt = "0.2.0"
 
-[dependencies.arduino-hal]
-git = "https://github.com/nonik0/avr-hal"
-branch = "feather-basic"
-features = ["feather-32u4"]
-optional = true
+# getting difficult multiple different branches of avr-hal, easy way for now
+#[dependencies.arduino-hal]
+#path = "G:\\rust\\avr\\avr-hal\\arduino-hal\\"
+#git = "https://github.com/nonik0/avr-hal"
+#branch = "feather-basic"
+#features = ["feather-32u4"]
+#optional = true
 
 [dependencies.avrxmega-hal]
 path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
