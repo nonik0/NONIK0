@@ -38,10 +38,38 @@ const NUM_EARTH_COLS: usize =
     NUM_EARTH_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_EARTH_CHARS - 1) * COLUMN_GAP;
 const EARTH_PERIOD: u8 = 3;
 
-#[cfg(feature = "feather32u4")]
-const OVERLAY: bool = false;
 #[cfg(feature = "attiny1604")]
 const OVERLAY: bool = true;
+#[cfg(feature = "feather32u4")]
+const OVERLAY: bool = false;
+
+#[cfg(feature = "attiny1604")]
+fn init() -> hcms_29xx::Hcms29xx<
+    NUM_CHARS,
+    hal::port::Pin<Output, PA6>,
+    hal::port::Pin<Output, PA4>,
+    hal::port::Pin<Output, PA3>,
+    hal::port::Pin<Output, PA2>,
+    hal::port::Pin<Output, PA1>,
+    UnconfiguredPin,
+    hal::port::Pin<Output, PB0>,
+> {
+    use hcms_29xx::UnconfiguredPin;
+
+    let dp = avrxmega_hal::Peripherals::take().unwrap();
+    let pins = avrxmega_hal::pins!(dp);
+
+    hcms_29xx::Hcms29xx::<NUM_CHARS_, _, _, _, _, _, _>::new(
+        pins.pa6.into_output(),
+        pins.pa4.into_output(),
+        pins.pa3.into_output(),
+        pins.pa2.into_output(),
+        pins.pa1.into_output(),
+        UnconfiguredPin::new(),
+        pins.pb0.into_output(),
+    )
+    .unwrap()
+}
 
 #[cfg(feature = "feather32u4")]
 fn init() -> hcms_29xx::Hcms29xx<
@@ -58,32 +86,6 @@ fn init() -> hcms_29xx::Hcms29xx<
     let pins = arduino_hal::pins!(dp);
 
     hcms_29xx::Hcms29xx::<NUM_CHARS, _, _, _, _, _, _, _>::new(
-        pins.d0.into_output(),
-        pins.d1.into_output(),
-        pins.d11.into_output(),
-        pins.d2.into_output(),
-        pins.d3.into_output(),
-        pins.d6.into_output(),
-        pins.d10.into_output(),
-    )
-    .unwrap()
-}
-
-#[cfg(feature = "attiny1604")]
-fn init() -> hcms_29xx::Hcms29xx<
-    NUM_CHARS,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-    impl embedded_hal::digital::OutputPin,
-> {
-    let dp = avrxmega_hal::Peripherals::take().unwrap();
-    let pins = avrxmega_hal::pins!(dp);
-
-    hcms_29xx::Hcms29xx::<NUM_CHARS_, _, _, _, _, _, _>::new(
         pins.d0.into_output(),
         pins.d1.into_output(),
         pins.d11.into_output(),

@@ -3,16 +3,21 @@
 #define NUM_CHARS 8
 
 #ifdef ARDUINO_ARCH_MEGAAVR
+// static pins:
+// SEL: HIGH
 #define DIN_PIN PIN_PA6   // 4
 #define RS_PIN PIN_PA4    // 2
 #define CLK_PIN PIN_PA3   // 13
 #define CE_PIN PIN_PA2    // 12
 #define BL_PIN PIN_PA1    // 11
 #define RESET_PIN PIN_PB0 // 9
+
 #define BTN1_PIN PIN_PA7  // 5
 #define BTN2_PIN PIN_PB3  // 6
+
 #define SDA_PIN PIN_PB1   // 8
 #define SCL_PIN PIN_PB2   // 7
+
 #define BUZZ_PIN PIN_PA5  // 3
 #endif
 
@@ -45,8 +50,10 @@
 #define BL_PIN 3
 #define SEL_PIN 6
 #define RESET_PIN 10
+
 #define DOUT_PIN SCK
 #define OSC_PIN MOSI
+
 #define VLOGIC_PIN 9
 #define VLED_PIN MISO
 #define GND_PIN 5
