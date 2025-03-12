@@ -10,6 +10,11 @@ name = "NONIK0"
 test = false
 bench = false
 
+[features]
+default = ["feather32u4"]
+feather32u4 = ["arduino-hal/feather-32u4"]
+attiny1604 = ["avrxmega-hal/attiny1604"]
+
 [dependencies]
 avr-device = { version = "0.7.0", features = ["rt"] }
 embedded-hal = "1.0"
@@ -21,14 +26,22 @@ random-trait = "0.1.1"
 #static_cell = "2.1.0"
 ufmt = "0.2.0"
 
-[dependencies.hcms-29xx]
-git = "https://github.com/nonik0/hcms-29xx"
-branch = "main"
-
 [dependencies.arduino-hal]
 git = "https://github.com/nonik0/avr-hal"
 branch = "feather-basic"
 features = ["feather-32u4"]
+optional = true
+
+[dependencies.avrxmega-hal]
+path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
+#git = "https://github.com/nonik0/avr-hal"
+#branch = "attiny204-804-1604"
+features = ["attiny1604"]
+optional = true
+
+[dependencies.hcms-29xx]
+git = "https://github.com/nonik0/hcms-29xx"
+branch = "main"
 
 # The latest releases of `proc-macro2` do not support the rust toolchain that
 # we use.  Thus, we must fix this dependency to an older version where our

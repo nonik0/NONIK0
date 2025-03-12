@@ -7,7 +7,8 @@ name = "NONIK0"
 version = "0.1.0"
 dependencies = [
  "arduino-hal",
- "avr-device",
+ "avr-device 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "avrxmega-hal",
  "embedded-hal 1.0.0",
  "hcms-29xx",
  "heapless",
@@ -24,8 +25,8 @@ version = "0.1.0"
 source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
 dependencies = [
  "atmega-hal",
- "avr-device",
- "avr-hal-generic",
+ "avr-device 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "avr-hal-generic 0.1.0 (git+https://github.com/nonik0/avr-hal?branch=feather-basic)",
  "cfg-if",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
@@ -37,8 +38,17 @@ name = "atmega-hal"
 version = "0.1.0"
 source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
 dependencies = [
- "avr-device",
- "avr-hal-generic",
+ "avr-device 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "avr-hal-generic 0.1.0 (git+https://github.com/nonik0/avr-hal?branch=feather-basic)",
+]
+
+[[package]]
+name = "avr-device"
+version = "0.7.0"
+dependencies = [
+ "bare-metal",
+ "cfg-if",
+ "vcell",
 ]
 
 [[package]]
@@ -67,9 +77,8 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
-source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
 dependencies = [
- "avr-device",
+ "avr-device 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
@@ -78,6 +87,30 @@ dependencies = [
  "paste",
  "ufmt",
  "unwrap-infallible",
+]
+
+[[package]]
+name = "avr-hal-generic"
+version = "0.1.0"
+source = "git+https://github.com/nonik0/avr-hal?branch=feather-basic#c07fe9a16d218eb4089f21dabfe823b27d4888f5"
+dependencies = [
+ "avr-device 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "embedded-hal 0.2.7",
+ "embedded-hal 1.0.0",
+ "embedded-hal-bus",
+ "embedded-storage",
+ "nb 1.1.0",
+ "paste",
+ "ufmt",
+ "unwrap-infallible",
+]
+
+[[package]]
+name = "avrxmega-hal"
+version = "0.1.0"
+dependencies = [
+ "avr-device 0.7.0",
+ "avr-hal-generic 0.1.0",
 ]
 
 [[package]]
