@@ -60,7 +60,11 @@
 // missing pins
 #endif
 
+#ifdef SEL_PIN
 HCMS39xx hcms29xx(NUM_CHARS, DIN_PIN, RS_PIN, CLK_PIN, CE_PIN, BL_PIN, SEL_PIN);
+#else
+HCMS39xx hcms29xx(NUM_CHARS, DIN_PIN, RS_PIN, CLK_PIN, CE_PIN, BL_PIN);
+#endif
 uint8_t brightness = 0x0C;
 HCMS39xx::DISPLAY_CURRENT current = HCMS39xx::CURRENT_4_0_mA;
 
@@ -100,37 +104,44 @@ void loop()
 #if defined(ARDUINO_ARCH_MEGAAVR)
   if (digitalRead(BTN1_PIN) == LOW)
   {
-    Serial.println("Button 1 pressed");
     tone(BUZZ_PIN, 4000, 500);
     count1 = 0;
 
-    brightness = (brightness + 1) % 12;
-    dotMatrix.setBrightness(brightness);
+    brightness = (brightness + 1) % 16;
+    hcms29xx.setBrightness(brightness);
+    char buffer[10];
+    snprintf(buffer, sizeof(buffer), "BRIGHT%02d", brightness);
+    hcms29xx.print(buffer);
+    delay(500);
   }
 
   if (digitalRead(BTN2_PIN) == LOW)
   {
-    Serial.println("Button 2 pressed");
-    tone(BUZZ_PIN, 8000, 500);
+    tone(BUZZ_PIN, 6000, 500);
     count2 = 0;
 
     if (current == HCMS39xx::CURRENT_4_0_mA)
     {
       current = HCMS39xx::CURRENT_6_4_mA;
+      hcms29xx.print("CUR6.4mA");
     }
     else if (current == HCMS39xx::CURRENT_6_4_mA)
     {
       current = HCMS39xx::CURRENT_9_3_mA;
+      hcms29xx.print("CUR9.3mA");
     }
     else if (current == HCMS39xx::CURRENT_9_3_mA)
     {
       current = HCMS39xx::CURRENT_12_8_mA;
+      hcms29xx.print("CR12.8mA");
     }
     else if (current == HCMS39xx::CURRENT_12_8_mA)
     {
       current = HCMS39xx::CURRENT_4_0_mA;
+      hcms29xx.print("CUR4.0mA");
     }
-    dotMatrix.setCurrent(current);
+    hcms29xx.setCurrent(current);
+    delay(500);
   }
 #endif
 
