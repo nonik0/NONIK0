@@ -1,29 +1,40 @@
 #![no_std]
 #![no_main]
 
+mod mcu;
 mod panic;
 mod random;
-mod mcu;
 
 use embedded_hal::delay::DelayNs;
 use heapless::Vec;
+use mcu::*;
 use random::Rand;
-use random_trait::Random;
-use mcu::*; // Import the correct module based on feature flag
+use random_trait::Random; // Import the correct module based on feature flag
 
+// The virtual display size is larger to accomodate the physical gaps between characters.
+// The const COLUMN_GAP is the number of "empty" columns between characters and will set
+// the NUM_VIRT_COLS value, the virtual "width" of the display. During display
+// updates, specific columns are dropped/skipped to create final NUM_COLS-wide display buffer.
+
+const BASE_DELAY_MS: u32 = 10;
+
+// the "real" display size
 pub const NUM_CHARS: usize = 8;
 const NUM_ROWS: usize = hcms_29xx::CHAR_HEIGHT;
 const NUM_COLS: usize = hcms_29xx::CHAR_WIDTH * NUM_CHARS;
+const NUM_VIRT_COLS: usize = NUM_COLS + (NUM_CHARS - 1) * COLUMN_GAP;
 const COLUMN_GAP: usize = 2;
-const BASE_DELAY_MS: u32 = 100;
 
-const NUM_SKY_COLS: usize =
-    NUM_SKY_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_SKY_CHARS - 1) * COLUMN_GAP;
+// virtual display size
+const NUM_CLOUD_COLS: usize =
+    NUM_CLOUD_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_CLOUD_CHARS - 1) * COLUMN_GAP;
 const SKY_PERIOD: u8 = 7;
 
 const NUM_EARTH_COLS: usize =
     NUM_EARTH_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_EARTH_CHARS - 1) * COLUMN_GAP;
 const EARTH_PERIOD: u8 = 3;
+
+const SKY_COL: u8 = 0b0111_1111; // silhouetted mountain and clouds so sky pixels are all on
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -37,57 +48,57 @@ fn main() -> ! {
         .unwrap();
 
     // col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
-    let mut sky_cols: Vec<u8, NUM_SKY_COLS> = Vec::new();
+    let mut cloud_cols: Vec<u8, NUM_CLOUD_COLS> = Vec::new();
     let mut earth_cols: Vec<u8, NUM_EARTH_COLS> = Vec::new();
-    let mut sky_count: u8 = 0;
-    let mut earth_count: u8 = 0;
+    let mut cloud_counter: u8 = 0;
+    let mut earth_counter: u8 = 0;
 
     let mut sky_state = CloudState::new();
     let mut earth_state = MountainState::new();
 
     // fill display buffer with initial columns
-    for _ in 0..NUM_SKY_COLS {
-        let new_sky_col = generate_sky_column(&mut sky_state);
-        sky_cols.push(new_sky_col).unwrap();
+    for _ in 0..NUM_CLOUD_COLS {
+        cloud_cols.push(SKY_COL).unwrap();
     }
     for _ in 0..NUM_EARTH_COLS {
-        let new_earth_col = generate_mountain_column(&mut earth_state);
-        earth_cols.push(new_earth_col).unwrap();
+        earth_cols.push(SKY_COL).unwrap();
     }
-
-    // let mut count = 0;
-    // loop {
-    //     display.print_u32(count).unwrap();
-    //     count += 1;
-    //     delay.delay_ms(100);
-    // }
 
     // sky and mountains will update at different rates for parallax effect (embassy would be nice)
     loop {
-        sky_count = (sky_count + 1) % SKY_PERIOD;
-        if sky_count == 0 {
-            let new_sky_col = generate_sky_column(&mut sky_state);
-            sky_cols.remove(0);
-            sky_cols.push(new_sky_col).unwrap();
+        cloud_counter = (cloud_counter + 1) % SKY_PERIOD;
+        if cloud_counter == 0 {
+            let new_cloud_col = generate_cloud_column(&mut sky_state);
+            cloud_cols.remove(0);
+            cloud_cols.push(new_cloud_col).unwrap();
         }
 
-        earth_count = (earth_count + 1) % EARTH_PERIOD;
-        if earth_count == 0 {
+        earth_counter = (earth_counter + 1) % EARTH_PERIOD;
+        if earth_counter == 0 {
             let new_earth_col = generate_mountain_column(&mut earth_state);
             earth_cols.remove(0);
             earth_cols.push(new_earth_col).unwrap();
         }
 
-        // TODO: can overlay both to display on single row of characters
         let mut cols: Vec<u8, NUM_COLS> = Vec::new();
-        for (i, &col) in sky_cols.iter().enumerate() {
-            if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                cols.push(col).unwrap();
+        if OVERLAY {
+            for i in 0..NUM_VIRT_COLS {
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    let cloud_col = cloud_cols.get(i).copied().unwrap_or(0);
+                    let earth_col = earth_cols.get(i).copied().unwrap_or(0);
+                    cols.push(cloud_col & earth_col).unwrap();
+                }
             }
-        }
-        for (i, &col) in earth_cols.iter().enumerate() {
-            if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                cols.push(col).unwrap();
+        } else {
+            for (i, &col) in cloud_cols.iter().enumerate() {
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    cols.push(col).unwrap();
+                }
+            }
+            for (i, &col) in earth_cols.iter().enumerate() {
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    cols.push(col).unwrap();
+                }
             }
         }
 
@@ -119,14 +130,16 @@ impl CloudState {
         let mut rng = Rand::default();
         self.gap = rng.get_u8() % 10 + 1;
         self.loc = 1 + rng.get_u8() % (NUM_ROWS as u8 - 2);
-        self.height = rng.get_u8() % 3 + 2;
-        self.length = rng.get_u8() % 10 + 5;
+        self.height = 2 + rng.get_u8() % 2;
+        self.length = 6 + rng.get_u8() % 10;
+        if self.height == 3 && self.loc > 4 {
+            self.loc -= 4;
+        }
     }
 }
 
-fn generate_sky_column(state: &mut CloudState) -> u8 {
-    // clouds are drawn as silhouettes, i.e. sky is on and cloud is off
-    let mut col = 0b0111_1111;
+fn generate_cloud_column(state: &mut CloudState) -> u8 {
+    let mut col = SKY_COL;
 
     if state.gap > 0 {
         state.gap -= 1;
@@ -169,39 +182,39 @@ impl MountainState {
 
     fn next_mountain(&mut self) {
         let mut rng = Rand::default();
-        self.height = rng.get_u8() % 4 + 4;
+        //self.cur_height remains the same
+        self.cur_length = 0;
+        self.height = 4 + rng.get_u8() % 3; // height range: [4, 6]
+        self.length = self.height
+            + 1
+            + (rng.get_u8() % (self.height + 1) + rng.get_u8() % (self.height + 1)) / 2; // length range: [height + 1, 2*height+2], 2 samples to give normal-er distribution
         self.increment = 1;
     }
-
-    // fn next_mountain(&mut self) {
-    //     //const MIN_HEIGHT: u8 = 3;
-    //     //const MAX_HEIGHT: u8 = 7;
-    //     //let mut rng = Rand::default();
-    //     // self.cur_height remains the same
-    //     self.cur_length = self.cur_height;
-    //     //self.height = MIN_HEIGHT + rng.get_u8() % (MAX_HEIGHT - MIN_HEIGHT);
-    //     self.height = 5; //self.cur_height + rng.get_u8() % (MAX_HEIGHT - self.cur_height + 1); // mountain needs to match current height at least
-    //     self.length = 7; //self.height + 1 + rng.get_u8() % (self.height - 1); // length range: [height + 1, 2*height-1]
-    //     self.increment = 1;
-    // }
 }
 
 fn generate_mountain_column(state: &mut MountainState) -> u8 {
-    // mountains are drawn as silhouettes, i.e. sky is on and mountain is off
-    let mut col = 0b0000_0000;
-    for _ in 0..(hcms_29xx::CHAR_HEIGHT as u8 - state.cur_height) {
-        col = col << 1 | 1;
-    }
-
     state.cur_height = (state.cur_height as i8 + state.increment) as u8;
     state.cur_length += 1;
 
+    // shift in 0s from bottom/left to build to current height
+    let mut col = SKY_COL;
+    for _ in 0..state.cur_height {
+        col = col >> 1;
+    }
+
+    // start going down
+    if state.increment > 0 && state.cur_height >= state.height {
+        state.increment = -1;
+    }
+
+    // stop going down
+    if state.increment < 0 && state.cur_height == 0 {
+        state.increment = 0;
+    }
+
     // start new mountain
-    if state.cur_height == 0 && state.increment < 0 {
-        //if state.cur_length >= state.length {
+    if state.increment <= 0 && state.cur_length == state.length {
         state.next_mountain();
-    } else if state.cur_height >= state.height {
-        state.increment *= -1;
     }
 
     col
