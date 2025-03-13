@@ -3,7 +3,7 @@ use avrxmega_hal::port::{mode::Output, *};
 pub type CoreClock = avrxmega_hal::clock::MHz10;
 pub type Delay = avrxmega_hal::delay::Delay<CoreClock>;
 
-pub const NUM_SKY_CHARS: usize = 8;
+pub const NUM_CLOUD_CHARS: usize = 8;
 pub const NUM_EARTH_CHARS: usize = 8;
 pub const OVERLAY: bool = true;
 
