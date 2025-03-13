@@ -1,8 +1,14 @@
 [build]
-target = "avr-specs/avr-atmega32u4.json"
+target = "avr-specs/avr-attiny1604.json"
 
 [target.'cfg(target_arch = "avr")']
-runner = "avrdude -v -p m32u4 -cavr109 -P COM19 -Uflash:w:target/avr-atmega32u4/debug/NONIK0.elf:e"
+runner = "avrdude -v -p t1604 -cavr109 -P COM23 -Uflash:w:target/avr-attiny1604/debug/NONIK0.elf:e"
+
+#[build]
+#target = "avr-specs/avr-atmega32u4.json"
+
+#[target.'cfg(target_arch = "avr")']
+#runner = "avrdude -v -p m32u4 -cavr109 -P COM19 -Uflash:w:target/avr-atmega32u4/debug/NONIK0.elf:e"
 
 [unstable]
 build-std = ["core"]

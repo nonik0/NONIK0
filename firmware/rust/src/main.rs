@@ -1,150 +1,33 @@
 #![no_std]
 #![no_main]
 
-#[cfg(feature = "feather32u4")]
-use arduino_hal as hal;
-
-#[cfg(feature = "attiny1604")]
-use atxmega_hal as hal;
-
-use hal::port::{mode::Output, *};
-
 mod panic;
 mod random;
+mod mcu;
 
+use embedded_hal::delay::DelayNs;
 use heapless::Vec;
 use random::Rand;
 use random_trait::Random;
+use mcu::*; // Import the correct module based on feature flag
 
-const NUM_CHARS: usize = 8;
+pub const NUM_CHARS: usize = 8;
 const NUM_ROWS: usize = hcms_29xx::CHAR_HEIGHT;
 const NUM_COLS: usize = hcms_29xx::CHAR_WIDTH * NUM_CHARS;
-const COLUMN_GAP: usize = 2; // number of "gap" columns between characters
-const BASE_DELAY_MS: u16 = 100;
+const COLUMN_GAP: usize = 2;
+const BASE_DELAY_MS: u32 = 100;
 
-#[cfg(feature = "feather32u4")]
-const NUM_SKY_CHARS: usize = 4;
-#[cfg(feature = "attiny1604")]
-const NUM_SKY_CHARS: usize = 8;
 const NUM_SKY_COLS: usize =
     NUM_SKY_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_SKY_CHARS - 1) * COLUMN_GAP;
 const SKY_PERIOD: u8 = 7;
 
-#[cfg(feature = "feather32u4")]
-const NUM_EARTH_CHARS: usize = 4;
-#[cfg(feature = "attiny1604")]
-const NUM_EARTH_CHARS: usize = 8;
 const NUM_EARTH_COLS: usize =
     NUM_EARTH_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_EARTH_CHARS - 1) * COLUMN_GAP;
 const EARTH_PERIOD: u8 = 3;
 
-#[cfg(feature = "attiny1604")]
-const OVERLAY: bool = true;
-#[cfg(feature = "feather32u4")]
-const OVERLAY: bool = false;
-
-#[cfg(feature = "attiny1604")]
-fn init() -> hcms_29xx::Hcms29xx<
-    NUM_CHARS,
-    hal::port::Pin<Output, PA6>,
-    hal::port::Pin<Output, PA4>,
-    hal::port::Pin<Output, PA3>,
-    hal::port::Pin<Output, PA2>,
-    hal::port::Pin<Output, PA1>,
-    UnconfiguredPin,
-    hal::port::Pin<Output, PB0>,
-> {
-    use hcms_29xx::UnconfiguredPin;
-
-    let dp = avrxmega_hal::Peripherals::take().unwrap();
-    let pins = avrxmega_hal::pins!(dp);
-
-    hcms_29xx::Hcms29xx::<NUM_CHARS_, _, _, _, _, _, _>::new(
-        pins.pa6.into_output(),
-        pins.pa4.into_output(),
-        pins.pa3.into_output(),
-        pins.pa2.into_output(),
-        pins.pa1.into_output(),
-        UnconfiguredPin::new(),
-        pins.pb0.into_output(),
-    )
-    .unwrap()
-}
-
-#[cfg(feature = "feather32u4")]
-fn init() -> hcms_29xx::Hcms29xx<
-    NUM_CHARS,
-    hal::port::Pin<Output, D0>,
-    hal::port::Pin<Output, D1>,
-    hal::port::Pin<Output, D11>,
-    hal::port::Pin<Output, D2>,
-    hal::port::Pin<Output, D3>,
-    hal::port::Pin<Output, D6>,
-    hal::port::Pin<Output, D10>,
-> {
-    let dp = arduino_hal::Peripherals::take().unwrap();
-    let pins = arduino_hal::pins!(dp);
-
-    hcms_29xx::Hcms29xx::<NUM_CHARS, _, _, _, _, _, _, _>::new(
-        pins.d0.into_output(),
-        pins.d1.into_output(),
-        pins.d11.into_output(),
-        pins.d2.into_output(),
-        pins.d3.into_output(),
-        pins.d6.into_output(),
-        pins.d10.into_output(),
-    )
-    .unwrap()
-}
-
-#[hal::entry]
+#[avr_device::entry]
 fn main() -> ! {
-    // #[cfg(feature = "feather32u4")]
-    // {
-    //     let dp = arduino_hal::Peripherals::take().unwrap();
-    //     let pins = arduino_hal::pins!(dp);
-    //     let mut adc = arduino_hal::Adc::new(dp.ADC, Default::default());
-
-    //     // read voltage from floating pin for reasonable entropy
-    //     let entropy_pin = pins.a0.into_analog_input(&mut adc);
-    //     let seed_value_1 = entropy_pin.analog_read(&mut adc);
-    //     let seed_value_2 = entropy_pin.analog_read(&mut adc);
-    //     let seed_value = (seed_value_1 as u32) << 16 | seed_value_2 as u32;
-    //     Rand::seed(seed_value);
-
-    //     // high impedance pins
-    //     pins.d9.into_floating_input();
-    //     pins.d5.into_floating_input();
-
-    //     let mut display = hcms_29xx::Hcms29xx::<NUM_CHARS, _, _, _, _, _, _, _>::new(
-    //         pins.d0.into_output(),  // Data pin
-    //         pins.d1.into_output(),  // RS pin
-    //         pins.d11.into_output(), // Clock pin
-    //         pins.d2.into_output(),  // CE pin
-    //         pins.d3.into_output(),  // Optional: Blank pin
-    //         pins.d6.into_output(),  // Optional: OscSel pin
-    //         pins.d10.into_output(), // Optional: Reset pin
-    //     )
-    //     .unwrap();
-    // }
-
-    // #[cfg(feature = "attiny1604")]
-    // {
-    //     let dp = avrxmega_hal::Peripherals::take().unwrap();
-    //     let pins = avrxmega_hal::pins!(dp);
-
-    //     let mut display = hcms_29xx::Hcms29xx::<NUM_CHARS, _, _, _, _, _, _, _>::new(
-    //         pins.d0.into_output(),        // Data pin
-    //         pins.d1.into_output(),        // RS pin
-    //         pins.d11.into_output(),       // Clock pin
-    //         pins.d2.into_output(),        // CE pin
-    //         pins.d3.into_output(),  // Optional: Blank pin
-    //         pins.d6.into_output(),  // Optional: OscSel pin
-    //         pins.d10.into_output(), // Optional: Reset pin
-    //     )
-    //     .unwrap();
-    // }
-
+    let mut delay = Delay::new();
     let mut display = init();
 
     display.begin().unwrap();
@@ -171,6 +54,13 @@ fn main() -> ! {
         let new_earth_col = generate_mountain_column(&mut earth_state);
         earth_cols.push(new_earth_col).unwrap();
     }
+
+    // let mut count = 0;
+    // loop {
+    //     display.print_u32(count).unwrap();
+    //     count += 1;
+    //     delay.delay_ms(100);
+    // }
 
     // sky and mountains will update at different rates for parallax effect (embassy would be nice)
     loop {
@@ -202,7 +92,7 @@ fn main() -> ! {
         }
 
         display.print_cols(&cols).unwrap();
-        hal::delay_ms(BASE_DELAY_MS);
+        delay.delay_ms(BASE_DELAY_MS);
     }
 }
 

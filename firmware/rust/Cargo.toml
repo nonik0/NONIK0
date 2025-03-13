@@ -13,7 +13,7 @@ bench = false
 [features]
 default = ["attiny1604"]
 #feather32u4 = ["arduino-hal/feather-32u4"]
-attiny1604 = ["avrxmega-hal/attiny1604", "avr-device/attiny1604", "avr-device/rt"]
+attiny1604 = ["avrxmega-hal/attiny1604", "avr-device/attiny404", "avr-device/rt"]
 
 [dependencies]
 avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["rt"] } # built locally with attiny1604 support
