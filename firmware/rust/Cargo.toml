@@ -17,7 +17,7 @@ heapless = "0.8.0"
 nb = "1.1.0"
 panic-halt = "1.0.0"
 random-trait = "0.1.1"
-#static_cell = "2.1.0"
+static_cell = { version = "2.1.0", features = ["nightly"] }
 ufmt = "0.2.0"
 
 [dependencies.avrxmega-hal]
@@ -36,15 +36,27 @@ branch = "main"
 [build-dependencies.proc-macro2]
 version = "=1.0.79"
 
+# Cargo profile settings quick reference:
+# codegen-units = [1-N] // Higher = faster compile, lower = better optimizations
+# debug = [0-2] // Debug info (0 = none, 1 = minimal, 2 = full)
+# incremental = [true, false] // true = faster rebuilds, false = best final optimizations
+# lto = [false, "thin", true] // Link-Time Optimization (false = none, "thin" = balanced, true = full)
+# opt-level = [0-3, "s", "z"] // Optimization level (0 = fast compile, 3 = max perf, "z" = smallest size)
+# panic = ["unwind", "abort"] // "abort" reduces binary size
+
 # Configure the build for minimal size - AVRs have very little program memory
 [profile.dev]
-panic = "abort"
+codegen-units = 1
+debug = 1
+incremental = true
 lto = true
 opt-level = "s"
+panic = "abort"
 
 [profile.release]
-panic = "abort"
 codegen-units = 1
-debug = true
+debug = 0
+incremental = false
 lto = true
 opt-level = "s"
+panic = "abort"

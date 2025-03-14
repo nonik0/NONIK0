@@ -1,4 +1,5 @@
-use crate::{Context, Display, Event, Mode, NUM_MODES};
+use crate::{Context, Display, Event};
+use super::{names, Mode, NUM_MODES};
 
 pub struct Menu {
     index: usize,
@@ -16,7 +17,7 @@ impl Menu {
 
 impl Mode for Menu {
     fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = self.last_update < context.mode_counter;
+        let mut update = self.last_update < context.menu_counter;
 
         if let Some(event) = event {
             match event {
@@ -37,7 +38,7 @@ impl Mode for Menu {
 
                     update = true;
                 }
-                Event::LeftHeld | Event::RightHeld => {
+                Event::RightHeld => {
                     context.mode_index = self.index;
                 }
                 _ => {}
@@ -45,14 +46,9 @@ impl Mode for Menu {
         }
 
         if update {
-            let menu_name = match self.index {
-                1 => *b"Nametag ",
-                2 => *b"  Game  ",
-                3 => *b"  Anim  ",
-                _ => *b"  ????  ",
-            };
-            display.print_ascii_bytes(&menu_name).unwrap();
-            self.last_update = context.mode_counter;
+            let menu_name = names(self.index);
+            display.print_ascii_bytes(menu_name).unwrap();
+            self.last_update = context.menu_counter;
         }
     }
 }

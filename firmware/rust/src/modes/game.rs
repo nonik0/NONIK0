@@ -1,4 +1,5 @@
-use crate::{Context, Display, Event, Mode};
+use crate::{Context, Display, Event};
+use super::Mode;
 
 pub struct Game {
     last_update: u16,
@@ -12,9 +13,14 @@ impl Game {
 
 impl Mode for Game {
     fn update(&mut self, _: &Option<Event>, display: &mut Display, context: &mut Context) {
-        if self.last_update < context.mode_counter {
-            self.last_update = context.mode_counter;
+        let mut update = false;
 
+        if self.last_update < context.menu_counter {
+            self.last_update = context.menu_counter;
+            update = true;
+        }
+
+        if update {
             display.print_ascii_bytes(b"TO IMPL").unwrap();
         }
     }

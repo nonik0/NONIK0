@@ -4,6 +4,8 @@ use core::fmt::Write;
 use embedded_hal::delay::DelayNs;
 use heapless::String;
 
+// TODO: I think core::fmt is huge, try ufmt instead
+
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     avr_device::interrupt::disable();

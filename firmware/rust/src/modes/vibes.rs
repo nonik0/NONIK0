@@ -1,4 +1,7 @@
-use crate::{Context, Display, Event, Mode, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
+// parallax animation of "driving" during through mountains and clouds
+
+use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
+use super::Mode;
 use heapless::Vec;
 use random_trait::Random; // Import the correct module based on feature flag
 
@@ -121,7 +124,8 @@ impl MountainState {
     }
 }
 
-pub struct Animation {
+pub struct Vibes {
+    last_update: u16,
     cloud_cols: Vec<u8, NUM_VIRT_COLS>,
     earth_cols: Vec<u8, NUM_VIRT_COLS>,
     cloud_counter: u8,
@@ -130,7 +134,7 @@ pub struct Animation {
     earth_state: MountainState,
 }
 
-impl Animation {
+impl Vibes {
     pub fn new() -> Self {
         let mut cloud_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
         let mut earth_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
@@ -148,7 +152,8 @@ impl Animation {
             earth_cols.push(SKY_COL).unwrap();
         }
 
-        Animation {
+        Vibes {
+            last_update: 0,
             cloud_cols,
             earth_cols,
             cloud_counter,
@@ -159,9 +164,14 @@ impl Animation {
     }
 }
 
-impl Mode for Animation {
+impl Mode for Vibes {
     fn update(&mut self, _: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = context.mode_switch;
+        let mut update = false;
+
+        if self.last_update < context.menu_counter {
+            self.last_update = context.menu_counter;
+            update = true;
+        }
 
         self.cloud_counter = (self.cloud_counter + 1) % SKY_PERIOD;
         if self.cloud_counter == 0 {

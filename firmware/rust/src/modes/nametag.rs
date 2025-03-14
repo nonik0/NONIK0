@@ -1,4 +1,5 @@
-use crate::{Context, Display, Event, Mode, NUM_CHARS};
+use crate::{Context, Display, Event, NUM_CHARS};
+use super::Mode;
 
 pub struct Nametag {
     name: [u8; NUM_CHARS],
@@ -16,9 +17,14 @@ impl Nametag {
 
 impl Mode for Nametag {
     fn update(&mut self, _: &Option<Event>, display: &mut Display, context: &mut Context) {
-        if self.last_update < context.mode_counter {
-            self.last_update = context.mode_counter;
+        let mut update = false;
 
+        if self.last_update < context.menu_counter {
+            self.last_update = context.menu_counter;
+            update = true;
+        }
+
+        if update {
             display.print_ascii_bytes(&self.name).unwrap();
         }
     }
