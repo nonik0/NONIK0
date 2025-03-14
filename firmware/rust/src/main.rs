@@ -28,6 +28,10 @@ type Display = hcms_29xx::Hcms29xx<
     hcms_29xx::UnconfiguredPin,
     Pin<Output, PB0>,
 >;
+type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
+
+const DEFAULT_BRIGHTNESS: u8 = 12;
+const DEFAULT_CURRENT: DisplayPeakCurrent = DisplayPeakCurrent::Max6_4Ma;
 
 // The virtual display size is larger to accomodate the physical gaps between characters.
 // The const COLUMN_GAP is the number of "empty" columns between characters and will set
