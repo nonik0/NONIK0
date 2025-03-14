@@ -9,7 +9,6 @@ pub struct RngState {
     index: usize,
 }
 
-// TODO: implement with OnceCell for portability, can use avr_hal sync types
 static RNG_STATE: Mutex<Cell<RngState>> = Mutex::new(Cell::new(RngState { value: 0, index: 0 }));
 
 // zero-size type in front of the static state

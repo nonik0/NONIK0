@@ -1,4 +1,3 @@
-// TODO: implement interrupt-based button handling
 use embedded_hal::digital::InputPin;
 
 const PRESS_CYCLES: u8 = 1;
