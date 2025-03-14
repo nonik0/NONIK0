@@ -2,7 +2,7 @@ use crate::{Context, Display, Event};
 use super::{names, Mode, NUM_MODES};
 
 pub struct Menu {
-    index: usize,
+    index: u8,
     last_update: u16,
 }
 
@@ -17,7 +17,7 @@ impl Menu {
 
 impl Mode for Menu {
     fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = self.last_update < context.menu_counter;
+        let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
             match event {
@@ -39,7 +39,7 @@ impl Mode for Menu {
                     update = true;
                 }
                 Event::RightHeld => {
-                    context.mode_index = self.index;
+                    context.to_mode(self.index);
                 }
                 _ => {}
             }

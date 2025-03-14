@@ -1,17 +1,19 @@
-use crate::{Context, Display, Event};
-use super::Mode;
+use random_trait::Random as _;
 
-pub struct Game {
+use super::Mode;
+use crate::{Context, Display, Event};
+
+pub struct Settings {
     last_update: u16,
 }
 
-impl Game {
+impl Settings {
     pub fn new() -> Self {
-        Game { last_update: 0 }
+        Settings { last_update: 0 }
     }
 }
 
-impl Mode for Game {
+impl Mode for Settings {
     fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
         let mut update = context.needs_update(&mut self.last_update);
 

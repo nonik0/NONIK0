@@ -12,6 +12,7 @@ mod random;
 
 use avrxmega_hal::port::{mode::Output, *};
 use embedded_hal::delay::DelayNs;
+use modes::*;
 use random::Rand;
 
 type CoreClock = avrxmega_hal::clock::MHz10;
@@ -39,12 +40,6 @@ const NUM_VIRT_COLS: usize = NUM_COLS + (NUM_CHARS - 1) * COLUMN_GAP;
 const COLUMN_GAP: usize = 2;
 
 const BASE_DELAY_MS: u32 = 10;
-
-struct Context {
-    menu_counter: u16,
-    mode_index: usize,
-    rand: Rand,
-}
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -81,11 +76,7 @@ fn main() -> ! {
         .set_peak_current(hcms_29xx::PeakCurrent::Max6_4Ma)
         .unwrap();
 
-    let mut context = Context {
-        menu_counter: 1,
-        mode_index: 1,
-        rand: rand,
-    };
+    let mut context = Context::default();
     let modes = modes::take();
 
     loop {
@@ -93,13 +84,12 @@ fn main() -> ! {
 
         // special case to get always get back to menu
         if let Some(Event::BothHeld) = event {
-            if context.mode_index != 0 {
-                context.menu_counter += 1;
+            if !context.is_menu() {
+                context.to_menu();
             }
-            context.mode_index = 0;
         }
 
-        modes[context.mode_index].update(&event, &mut display, &mut context);
+        modes[context.mode()].update(&event, &mut display, &mut context);
 
         delay.delay_ms(BASE_DELAY_MS);
     }
