@@ -10,13 +10,8 @@ name = "NONIK0"
 test = false
 bench = false
 
-[features]
-default = ["attiny1604"]
-#feather32u4 = ["arduino-hal/feather-32u4"]
-attiny1604 = ["avrxmega-hal/attiny1604", "avr-device/attiny404", "avr-device/rt"]
-
 [dependencies]
-avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["rt"] } # built locally with attiny1604 support
+avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["attiny1604", "rt"] } # built locally with attiny1604 support
 embedded-hal = "1.0"
 heapless = "0.8.0"
 nb = "1.1.0"
@@ -25,20 +20,11 @@ random-trait = "0.1.1"
 #static_cell = "2.1.0"
 ufmt = "0.2.0"
 
-# getting difficult multiple different branches of avr-hal, easy way for now
-#[dependencies.arduino-hal]
-#path = "G:\\rust\\avr\\avr-hal\\arduino-hal\\"
-#git = "https://github.com/nonik0/avr-hal"
-#branch = "feather-basic"
-#features = ["feather-32u4"]
-#optional = true
-
 [dependencies.avrxmega-hal]
 path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
 #git = "https://github.com/nonik0/avr-hal"
 #branch = "attiny204-804-1604"
 features = ["attiny1604"]
-optional = true
 
 [dependencies.hcms-29xx]
 git = "https://github.com/nonik0/hcms-29xx"
