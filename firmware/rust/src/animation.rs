@@ -1,21 +1,11 @@
-use crate::{
-    Context, Event, Mode, Rand, BASE_DELAY_MS, COLUMN_GAP, NUM_CHARS, NUM_COLS, NUM_ROWS,
-    NUM_VIRT_COLS,
-};
+use crate::{Context, Display, Event, Mode, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use heapless::Vec;
 use random_trait::Random; // Import the correct module based on feature flag
 
-// virtual display size
-pub const NUM_CLOUD_CHARS: usize = 8;
-const NUM_CLOUD_COLS: usize =
-    NUM_CLOUD_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_CLOUD_CHARS - 1) * COLUMN_GAP;
 const SKY_PERIOD: u8 = 7;
-
-pub const NUM_EARTH_CHARS: usize = 8;
-const NUM_EARTH_COLS: usize =
-    NUM_EARTH_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_EARTH_CHARS - 1) * COLUMN_GAP;
 const EARTH_PERIOD: u8 = 3;
 
+// col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
 const SKY_COL: u8 = 0b0111_1111; // silhouetted mountain and clouds so sky pixels are all on
 
 struct CloudState {
@@ -47,29 +37,29 @@ impl CloudState {
             self.loc -= 4;
         }
     }
-}
 
-fn generate_cloud_column(state: &mut CloudState) -> u8 {
-    let mut col = SKY_COL;
+    fn next_col(&mut self) -> u8 {
+        let mut col = SKY_COL;
 
-    if state.gap > 0 {
-        state.gap -= 1;
-    } else if state.cur_length < state.length {
-        for i in 0..NUM_ROWS {
-            let bit = if (i as u8) >= state.loc && (i as u8) < state.loc + state.height {
-                0
-            } else {
-                1
-            };
-            col = col << 1 | bit;
+        if self.gap > 0 {
+            self.gap -= 1;
+        } else if self.cur_length < self.length {
+            for i in 0..NUM_ROWS {
+                let bit = if (i as u8) >= self.loc && (i as u8) < self.loc + self.height {
+                    0
+                } else {
+                    1
+                };
+                col = col << 1 | bit;
+            }
+            self.cur_length += 1;
+        } else {
+            self.cur_length = 0;
+            self.next_cloud();
         }
-        state.cur_length += 1;
-    } else {
-        state.cur_length = 0;
-        state.next_cloud();
-    }
 
-    col
+        col
+    }
 }
 
 struct MountainState {
@@ -101,80 +91,107 @@ impl MountainState {
             + (rng.get_u8() % (self.height + 1) + rng.get_u8() % (self.height + 1)) / 2; // length range: [height + 1, 2*height+2], 2 samples to give normal-er distribution
         self.increment = 1;
     }
-}
 
-fn generate_mountain_column(state: &mut MountainState) -> u8 {
-    state.cur_height = (state.cur_height as i8 + state.increment) as u8;
-    state.cur_length += 1;
+    fn next_col(&mut self) -> u8 {
+        self.cur_height = (self.cur_height as i8 + self.increment) as u8;
+        self.cur_length += 1;
 
-    // shift in 0s from bottom/left to build to current height
-    let mut col = SKY_COL;
-    for _ in 0..state.cur_height {
-        col = col >> 1;
-    }
-
-    // start going down
-    if state.increment > 0 && state.cur_height >= state.height {
-        state.increment = -1;
-    }
-
-    // stop going down
-    if state.increment < 0 && state.cur_height == 0 {
-        state.increment = 0;
-    }
-
-    // start new mountain
-    if state.increment <= 0 && state.cur_length == state.length {
-        state.next_mountain();
-    }
-
-    col
-}
-
-fn update() {
-    // col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
-    let mut cloud_cols: Vec<u8, NUM_CLOUD_COLS> = Vec::new();
-    let mut earth_cols: Vec<u8, NUM_EARTH_COLS> = Vec::new();
-    let mut cloud_counter: u8 = 0;
-    let mut earth_counter: u8 = 0;
-
-    let mut sky_state = CloudState::new();
-    let mut earth_state = MountainState::new();
-
-    // fill display buffer with initial columns
-    for _ in 0..NUM_CLOUD_COLS {
-        cloud_cols.push(SKY_COL).unwrap();
-    }
-    for _ in 0..NUM_EARTH_COLS {
-        earth_cols.push(SKY_COL).unwrap();
-    }
-
-    // sky and mountains will update at different rates for parallax effect (embassy would be nice)
-    loop {
-        cloud_counter = (cloud_counter + 1) % SKY_PERIOD;
-        if cloud_counter == 0 {
-            let new_cloud_col = generate_cloud_column(&mut sky_state);
-            cloud_cols.remove(0);
-            cloud_cols.push(new_cloud_col).unwrap();
+        // Shift in 0s from bottom/left to build to current height
+        let mut col = SKY_COL;
+        for _ in 0..self.cur_height {
+            col = col >> 1;
         }
 
-        earth_counter = (earth_counter + 1) % EARTH_PERIOD;
-        if earth_counter == 0 {
-            let new_earth_col = generate_mountain_column(&mut earth_state);
-            earth_cols.remove(0);
-            earth_cols.push(new_earth_col).unwrap();
+        // Start going down
+        if self.increment > 0 && self.cur_height >= self.height {
+            self.increment = -1;
         }
 
-        // let mut cols: Vec<u8, NUM_COLS> = Vec::new();
-        // for i in 0..NUM_VIRT_COLS {
-        //     if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-        //         let cloud_col = cloud_cols.get(i).copied().unwrap_or(0);
-        //         let earth_col = earth_cols.get(i).copied().unwrap_or(0);
-        //         cols.push(cloud_col & earth_col).unwrap();
-        //     }
-        // }
+        // Stop going down
+        if self.increment < 0 && self.cur_height == 0 {
+            self.increment = 0;
+        }
 
-        // display.print_cols(&cols).unwrap();
-        // delay.delay_ms(BASE_DELAY_MS);
+        // Start new mountain
+        if self.increment <= 0 && self.cur_length == self.length {
+            self.next_mountain();
+        }
+
+        col
+    }
+}
+
+pub struct Animation {
+    cloud_cols: Vec<u8, NUM_VIRT_COLS>,
+    earth_cols: Vec<u8, NUM_VIRT_COLS>,
+    cloud_counter: u8,
+    earth_counter: u8,
+    cloud_state: CloudState,
+    earth_state: MountainState,
+}
+
+impl Animation {
+    pub fn new() -> Self {
+        let mut cloud_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+        let mut earth_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+        let cloud_counter: u8 = 0;
+        let earth_counter: u8 = 0;
+
+        let cloud_state = CloudState::new();
+        let earth_state = MountainState::new();
+
+        // fill display buffer with initial columns
+        for _ in 0..NUM_VIRT_COLS {
+            cloud_cols.push(SKY_COL).unwrap();
+        }
+        for _ in 0..NUM_VIRT_COLS {
+            earth_cols.push(SKY_COL).unwrap();
+        }
+
+        Animation {
+            cloud_cols,
+            earth_cols,
+            cloud_counter,
+            earth_counter,
+            cloud_state,
+            earth_state,
+        }
+    }
+}
+
+impl Mode for Animation {
+    fn update(&mut self, _: &Option<Event>, display: &mut Display, context: &mut Context) {
+        let mut update = context.mode_switch;
+
+        self.cloud_counter = (self.cloud_counter + 1) % SKY_PERIOD;
+        if self.cloud_counter == 0 {
+            let new_cloud_col = self.cloud_state.next_col();
+            self.cloud_cols.remove(0);
+            self.cloud_cols.push(new_cloud_col).unwrap();
+
+            update = true;
+        }
+
+        self.earth_counter = (self.earth_counter + 1) % EARTH_PERIOD;
+        if self.earth_counter == 0 {
+            let new_earth_col = self.earth_state.next_col();
+            self.earth_cols.remove(0);
+            self.earth_cols.push(new_earth_col).unwrap();
+
+            update = true;
+        }
+
+        if update {
+            let mut cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+            for i in 0..NUM_VIRT_COLS {
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    let cloud_col = self.cloud_cols.get(i).copied().unwrap_or(0);
+                    let earth_col = self.earth_cols.get(i).copied().unwrap_or(0);
+                    cols.push(cloud_col & earth_col).unwrap();
+                }
+            }
+
+            display.print_cols(cols.as_slice()).unwrap();
+        }
     }
 }
