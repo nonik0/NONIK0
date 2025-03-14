@@ -1,45 +1,69 @@
 #![no_std]
 #![no_main]
 
-mod mcu;
+mod animation;
+mod buttons;
 mod panic;
 mod random;
 
 use embedded_hal::delay::DelayNs;
-use heapless::Vec;
-use mcu::*;
 use random::Rand;
-use random_trait::Random; // Import the correct module based on feature flag
+
+pub type CoreClock = avrxmega_hal::clock::MHz10;
+pub type Delay = avrxmega_hal::delay::Delay<CoreClock>;
 
 // The virtual display size is larger to accomodate the physical gaps between characters.
 // The const COLUMN_GAP is the number of "empty" columns between characters and will set
 // the NUM_VIRT_COLS value, the virtual "width" of the display. During display
 // updates, specific columns are dropped/skipped to create final NUM_COLS-wide display buffer.
-
-const BASE_DELAY_MS: u32 = 10;
-
-// the "real" display size
 pub const NUM_CHARS: usize = 8;
 const NUM_ROWS: usize = hcms_29xx::CHAR_HEIGHT;
 const NUM_COLS: usize = hcms_29xx::CHAR_WIDTH * NUM_CHARS;
 const NUM_VIRT_COLS: usize = NUM_COLS + (NUM_CHARS - 1) * COLUMN_GAP;
 const COLUMN_GAP: usize = 2;
 
-// virtual display size
-const NUM_CLOUD_COLS: usize =
-    NUM_CLOUD_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_CLOUD_CHARS - 1) * COLUMN_GAP;
-const SKY_PERIOD: u8 = 7;
+const BASE_DELAY_MS: u32 = 10;
 
-const NUM_EARTH_COLS: usize =
-    NUM_EARTH_CHARS * hcms_29xx::CHAR_WIDTH + (NUM_EARTH_CHARS - 1) * COLUMN_GAP;
-const EARTH_PERIOD: u8 = 3;
+struct Context {
+    rng: Rand,
+}
 
-const SKY_COL: u8 = 0b0111_1111; // silhouetted mountain and clouds so sky pixels are all on
+enum Event {
+    Button(crate::buttons::ButtonEvent),
+    // future events?
+}
+
+trait Mode {
+    fn update(&mut self, event: &Event, ctx: &mut Context) -> [u8; NUM_VIRT_COLS];
+}
 
 #[avr_device::entry]
 fn main() -> ! {
+    let dp = avrxmega_hal::Peripherals::take().unwrap();
+    let pins = avrxmega_hal::pins!(dp);
+
+    // let mut adc = avrxmega_hal::Adc::new(dp.ADC0, Default::default());
+    let mut buttons =
+        buttons::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
-    let mut display = init();
+
+    // // read voltage from floating pin for reasonable entropy
+    // let entropy_pin = pins.a0.into_analog_input(&mut adc);
+    // let seed_value_1 = entropy_pin.analog_read(&mut adc);
+    // let seed_value_2 = entropy_pin.analog_read(&mut adc);
+    // let seed_value = (seed_value_1 as u32) << 16 | seed_value_2 as u32;
+    // Rand::seed(seed_value);
+
+    let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
+        pins.pa6.into_output(),
+        pins.pa4.into_output(),
+        pins.pa3.into_output(),
+        pins.pa2.into_output(),
+        pins.pa1.into_output(),
+        hcms_29xx::UnconfiguredPin,
+        pins.pb0.into_output(),
+    )
+    .unwrap();
 
     display.begin().unwrap();
     display.display_unblank().unwrap();
@@ -47,175 +71,38 @@ fn main() -> ! {
         .set_peak_current(hcms_29xx::PeakCurrent::Max6_4Ma)
         .unwrap();
 
-    // col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
-    let mut cloud_cols: Vec<u8, NUM_CLOUD_COLS> = Vec::new();
-    let mut earth_cols: Vec<u8, NUM_EARTH_COLS> = Vec::new();
-    let mut cloud_counter: u8 = 0;
-    let mut earth_counter: u8 = 0;
-
-    let mut sky_state = CloudState::new();
-    let mut earth_state = MountainState::new();
-
-    // fill display buffer with initial columns
-    for _ in 0..NUM_CLOUD_COLS {
-        cloud_cols.push(SKY_COL).unwrap();
-    }
-    for _ in 0..NUM_EARTH_COLS {
-        earth_cols.push(SKY_COL).unwrap();
-    }
-
-    // sky and mountains will update at different rates for parallax effect (embassy would be nice)
     loop {
-        cloud_counter = (cloud_counter + 1) % SKY_PERIOD;
-        if cloud_counter == 0 {
-            let new_cloud_col = generate_cloud_column(&mut sky_state);
-            cloud_cols.remove(0);
-            cloud_cols.push(new_cloud_col).unwrap();
-        }
+        let button_event = buttons.update();
 
-        earth_counter = (earth_counter + 1) % EARTH_PERIOD;
-        if earth_counter == 0 {
-            let new_earth_col = generate_mountain_column(&mut earth_state);
-            earth_cols.remove(0);
-            earth_cols.push(new_earth_col).unwrap();
-        }
-
-        let mut cols: Vec<u8, NUM_COLS> = Vec::new();
-        if OVERLAY {
-            for i in 0..NUM_VIRT_COLS {
-                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                    let cloud_col = cloud_cols.get(i).copied().unwrap_or(0);
-                    let earth_col = earth_cols.get(i).copied().unwrap_or(0);
-                    cols.push(cloud_col & earth_col).unwrap();
+        if let Some(event) = button_event {
+            match event {
+                crate::buttons::ButtonEvent::BothPressed => {
+                    display.print_ascii_bytes(b"BothPres").unwrap();
                 }
-            }
-        } else {
-            for (i, &col) in cloud_cols.iter().enumerate() {
-                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                    cols.push(col).unwrap();
+                crate::buttons::ButtonEvent::BothHeld => {
+                    display.print_ascii_bytes(b"BothHeld").unwrap();
                 }
-            }
-            for (i, &col) in earth_cols.iter().enumerate() {
-                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                    cols.push(col).unwrap();
+                crate::buttons::ButtonEvent::LeftPressed => {
+                    display.print_ascii_bytes(b"LeftPres").unwrap();
+                }
+                crate::buttons::ButtonEvent::LeftHeld => {
+                    display.print_ascii_bytes(b"LeftHeld").unwrap();
+                }
+                crate::buttons::ButtonEvent::LeftReleased => {
+                    display.print_ascii_bytes(b"LeftRele").unwrap();
+                }
+                crate::buttons::ButtonEvent::RightPressed => {
+                    display.print_ascii_bytes(b"RightPre").unwrap();
+                }
+                crate::buttons::ButtonEvent::RightHeld => {
+                    display.print_ascii_bytes(b"RightHel").unwrap();
+                }
+                crate::buttons::ButtonEvent::RightReleased => {
+                    display.print_ascii_bytes(b"RightRel").unwrap();
                 }
             }
         }
 
-        display.print_cols(&cols).unwrap();
         delay.delay_ms(BASE_DELAY_MS);
     }
-}
-
-struct CloudState {
-    loc: u8,
-    gap: u8,
-    cur_length: u8,
-    height: u8,
-    length: u8,
-}
-
-impl CloudState {
-    fn new() -> Self {
-        CloudState {
-            loc: 0,
-            gap: 1,
-            cur_length: 0,
-            length: 0,
-            height: 0,
-        }
-    }
-
-    fn next_cloud(&mut self) {
-        let mut rng = Rand::default();
-        self.gap = rng.get_u8() % 10 + 1;
-        self.loc = 1 + rng.get_u8() % (NUM_ROWS as u8 - 2);
-        self.height = 2 + rng.get_u8() % 2;
-        self.length = 6 + rng.get_u8() % 10;
-        if self.height == 3 && self.loc > 4 {
-            self.loc -= 4;
-        }
-    }
-}
-
-fn generate_cloud_column(state: &mut CloudState) -> u8 {
-    let mut col = SKY_COL;
-
-    if state.gap > 0 {
-        state.gap -= 1;
-    } else if state.cur_length < state.length {
-        for i in 0..NUM_ROWS {
-            let bit = if (i as u8) >= state.loc && (i as u8) < state.loc + state.height {
-                0
-            } else {
-                1
-            };
-            col = col << 1 | bit;
-        }
-        state.cur_length += 1;
-    } else {
-        state.cur_length = 0;
-        state.next_cloud();
-    }
-
-    col
-}
-
-struct MountainState {
-    cur_height: u8,
-    cur_length: u8,
-    height: u8,
-    length: u8,
-    increment: i8,
-}
-
-impl MountainState {
-    fn new() -> Self {
-        MountainState {
-            cur_height: 0,
-            cur_length: 0,
-            height: 7,
-            length: 15,
-            increment: 1,
-        }
-    }
-
-    fn next_mountain(&mut self) {
-        let mut rng = Rand::default();
-        //self.cur_height remains the same
-        self.cur_length = 0;
-        self.height = 4 + rng.get_u8() % 3; // height range: [4, 6]
-        self.length = self.height
-            + 1
-            + (rng.get_u8() % (self.height + 1) + rng.get_u8() % (self.height + 1)) / 2; // length range: [height + 1, 2*height+2], 2 samples to give normal-er distribution
-        self.increment = 1;
-    }
-}
-
-fn generate_mountain_column(state: &mut MountainState) -> u8 {
-    state.cur_height = (state.cur_height as i8 + state.increment) as u8;
-    state.cur_length += 1;
-
-    // shift in 0s from bottom/left to build to current height
-    let mut col = SKY_COL;
-    for _ in 0..state.cur_height {
-        col = col >> 1;
-    }
-
-    // start going down
-    if state.increment > 0 && state.cur_height >= state.height {
-        state.increment = -1;
-    }
-
-    // stop going down
-    if state.increment < 0 && state.cur_height == 0 {
-        state.increment = 0;
-    }
-
-    // start new mountain
-    if state.increment <= 0 && state.cur_length == state.length {
-        state.next_mountain();
-    }
-
-    col
 }
