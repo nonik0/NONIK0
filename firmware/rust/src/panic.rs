@@ -1,10 +1,41 @@
 use crate::{Delay, NUM_CHARS};
 
-use core::fmt::Write;
+// using ufmt::uWrite over core::fmt::Write saves like ~1kB
+use core::convert::Infallible;
 use embedded_hal::delay::DelayNs;
-use heapless::String;
+use ufmt::{uwrite, uWrite};
 
-// TODO: I think core::fmt is huge, try ufmt instead
+struct ByteArrayWriter<'a> {
+    buffer: &'a mut [u8],
+    pos: usize,
+}
+
+impl<'a> ByteArrayWriter<'a> {
+    fn as_bytes(&self) -> &[u8] {
+        &self.buffer[..self.pos]
+    }
+}
+
+impl<'a> ByteArrayWriter<'a> {
+    fn new(buffer: &'a mut [u8]) -> Self {
+        Self { buffer, pos: 0 }
+    }
+}
+
+impl<'a> uWrite for ByteArrayWriter<'a> {
+    type Error = Infallible;
+
+    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+        let bytes = s.as_bytes();
+        let remaining = self.buffer.len().saturating_sub(self.pos);
+        let to_copy = bytes.len().min(remaining);
+
+        self.buffer[self.pos..self.pos + to_copy].copy_from_slice(&bytes[..to_copy]);
+        self.pos += to_copy;
+
+        Ok(())
+    }
+}
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -26,14 +57,15 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     display.begin().unwrap();
     display.display_unblank().unwrap();
 
-    let mut panic_msg: String<64> = String::new();
+    let mut panic_msg: [u8; 64] = [0; 64];
+    let mut panic_msg = ByteArrayWriter::new(&mut panic_msg);
     for _ in 0..NUM_CHARS {
-        panic_msg.push(' ').ok();
+        panic_msg.write_char(' ').ok();
     }
-    panic_msg.push_str("PANIC! ").ok();
+    panic_msg.write_str("PANIC! ").ok();
 
     if let Some(loc) = info.location() {
-        write!(
+        uwrite!(
             &mut panic_msg,
             "{}:{}:{}",
             loc.file(),
@@ -43,7 +75,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
         .ok();
     }
     for _ in 0..NUM_CHARS {
-        panic_msg.push(' ').ok();
+        panic_msg.write_char(' ').ok();
     }
 
     let panic_msg = panic_msg.as_bytes();
