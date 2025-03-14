@@ -21,11 +21,11 @@ pub struct Nametag {
 impl Nametag {
     pub fn new() -> Self {
         Nametag {
-            name: *b"  Nick  ",
+            name: *b" Stella ",
             last_update: 0,
 
             editing: false,
-            edit_name: *b"  Nick  ",
+            edit_name: *b" Stella ",
             edit_index: 0,
             blink_counter: 0,
             blink_char: b'_',

@@ -10,6 +10,7 @@
 // TODO: implement EEPROM for persisting state
 // TODO: implement Random with OnceCell for portability, can use avr_hal sync types
 
+mod eeprom;
 mod input;
 mod modes;
 //mod panic;
