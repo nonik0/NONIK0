@@ -1,4 +1,3 @@
-// TODO: feature gate specific modes (i.e. feather is only vibes)
 use crate::{Display, Event, NUM_CHARS};
 use static_cell::make_static;
 
