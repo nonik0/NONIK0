@@ -12,8 +12,19 @@ impl Game {
 }
 
 impl Mode for Game {
-    fn update(&mut self, _: &Option<Event>, display: &mut Display, context: &mut Context) {
+    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
         let mut update = false;
+
+        if let Some(event) = event {
+            match event {
+                Event::LeftHeld => {
+                    context.menu_counter += 1;
+                    context.mode_index = 0;
+                    return;
+                }
+                _ => {}
+            }
+        }
 
         if self.last_update < context.menu_counter {
             self.last_update = context.menu_counter;

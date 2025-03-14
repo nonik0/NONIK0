@@ -6,8 +6,8 @@ const HOLD_CYCLES: u8 = 10;
 const DEBOUNCE_CYCLES: u8 = 3;
 
 pub enum InputEvent {
-    // BothPressed,
-    // BothHeld,
+    BothPressed,
+    BothHeld,
     LeftPressed,
     LeftReleased,
     LeftHeld,
@@ -62,19 +62,19 @@ where
             right_pressed = false;
         }
     
-        // // Handle both buttons pressed
-        // if left_pressed && right_pressed {
-        //     // Increment counters for both buttons
-        //     self.left_held_cycles += 1;
-        //     self.right_held_cycles += 1;
+        // Handle both buttons pressed
+        if left_pressed && right_pressed {
+            // Increment counters for both buttons
+            self.left_held_cycles += 1;
+            self.right_held_cycles += 1;
 
-        //     // Check for "just pressed" or "held" conditions
-        //     if self.left_held_cycles == 1 || self.right_held_cycles == 1 {
-        //         return Some(ButtonEvent::BothPressed);
-        //     } else if self.left_held_cycles > 10 && self.right_held_cycles > 10 {
-        //         return Some(ButtonEvent::BothHeld);
-        //     }
-        // }
+            // Check for "just pressed" or "held" conditions
+            if self.left_held_cycles == 1 || self.right_held_cycles == 1 {
+                return Some(InputEvent::BothPressed);
+            } else if self.left_held_cycles > 10 && self.right_held_cycles > 10 {
+                return Some(InputEvent::BothHeld);
+            }
+        }
 
         // Handle left button
         if left_pressed {
