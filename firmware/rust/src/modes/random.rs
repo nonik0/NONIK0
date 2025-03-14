@@ -27,6 +27,11 @@ impl Mode for Random {
                 Event::LeftPressed | Event::RightPressed => {
                     update = true;
                 }
+                Event::LeftHeld => {
+                    context.menu_counter += 1;
+                    context.mode_index = 0;
+                    return;
+                }
                 _ => {}
             }
         }

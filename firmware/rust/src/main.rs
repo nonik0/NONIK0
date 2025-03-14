@@ -91,8 +91,8 @@ fn main() -> ! {
     loop {
         let event = buttons.update();
 
-        // special case to get to menu
-        if let Some(Event::LeftHeld) = event {
+        // special case to get always get back to menu
+        if let Some(Event::BothHeld) = event {
             if context.mode_index != 0 {
                 context.menu_counter += 1;
             }
