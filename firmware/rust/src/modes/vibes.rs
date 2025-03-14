@@ -166,22 +166,16 @@ impl Vibes {
 
 impl Mode for Vibes {
     fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = false;
+        let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
-                    context.menu_counter += 1;
-                    context.mode_index = 0;
+                    context.to_menu();
                     return;
                 }
                 _ => {}
             }
-        }
-
-        if self.last_update < context.menu_counter {
-            self.last_update = context.menu_counter;
-            update = true;
         }
 
         self.cloud_counter = (self.cloud_counter + 1) % SKY_PERIOD;
