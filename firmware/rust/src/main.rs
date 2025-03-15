@@ -13,6 +13,7 @@
 mod eeprom;
 mod input;
 mod modes;
+use eeprom::Eeprom;
 //mod panic;
 use panic_halt as _;
 mod random;
@@ -61,8 +62,6 @@ fn main() -> ! {
     let mut buttons =
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
-    let rand = Rand::default();
-    Rand::seed(0xdeadbeef);
 
     // // read voltage from floating pin for reasonable entropy
     // let entropy_pin = pins.a0.into_analog_input(&mut adc);
@@ -83,9 +82,52 @@ fn main() -> ! {
 
     display.begin().unwrap();
     display.display_unblank().unwrap();
-    display
-        .set_peak_current(hcms_29xx::PeakCurrent::Max6_4Ma)
-        .unwrap();
+
+    dp.CPU.ccp.write(|w| w.ccp().spm());
+    if dp.CPU.ccp.read().ccp().is_spm() {
+        display.print_ascii_bytes(b"     SPM").unwrap();
+    } else {
+        display.print_ascii_bytes(b"  NO SPM").unwrap();
+    }
+    delay.delay_ms(1000);
+
+    eeprom::Eeprom::init(dp.CPU, dp.NVMCTRL);
+    Rand::seed(0xdeadbeef);
+
+    display.print_ascii_bytes(b"rdeeprom").unwrap();
+    delay.delay_ms(1000);
+    let mut brightness = DEFAULT_BRIGHTNESS;
+    let mut current = DEFAULT_CURRENT;
+
+    let settings_version = Eeprom::instance().load_setting(eeprom::Setting::Version) as u8;
+
+    if settings_version == 0xFF {
+        Eeprom::instance().save_setting(eeprom::Setting::Version, 1);
+        display.print_ascii_bytes(b"     set").unwrap();
+        delay.delay_ms(1000);
+    } else {
+        display.print_u32(settings_version as u32).unwrap();
+        delay.delay_ms(1000);
+    }
+
+    // if settings_version != 0xFF {
+    //     display.print_u32(settings_version as u32).unwrap();
+    //     delay.delay_ms(1000);
+    //     brightness = Eeprom::instance().load_setting(eeprom::Setting::Brightness);
+    //     current = match Eeprom::instance().load_setting(eeprom::Setting::Current) {
+    //         0b0010_0000 => DisplayPeakCurrent::Max4_0Ma,
+    //         0b0001_0000 => DisplayPeakCurrent::Max6_4Ma,
+    //         0b0000_0000 => DisplayPeakCurrent::Max9_3Ma,
+    //         0b0011_0000 => DisplayPeakCurrent::Max12_8Ma,
+    //         _ => DEFAULT_CURRENT, // Fallback to default if value is invalid
+    //     };
+    // } else {
+    //     display.print_ascii_bytes(b"  nodata").unwrap();
+    //     delay.delay_ms(1000);
+    // }
+
+    display.set_brightness(brightness).unwrap();
+    display.set_peak_current(current).unwrap();
 
     let mut context = Context::default();
     let modes = modes::take();
