@@ -36,9 +36,24 @@ impl Mode for Settings {
                     context.to_menu();
                     return;
                 }
-                Event::LeftReleased => match self.cur_setting {
+                Event::RightHeld => match self.cur_setting {
                     Setting::Brightness => self.cur_setting = Setting::Current,
                     Setting::Current => self.cur_setting = Setting::Brightness,
+                }
+                Event::LeftReleased => match self.cur_setting {
+                    Setting::Brightness => {
+                        self.brightness = (self.brightness + 15) % 16;
+                        display.set_brightness(self.brightness).unwrap();
+                    }
+                    Setting::Current => {
+                        self.current = match self.current {
+                            DisplayPeakCurrent::Max4_0Ma => DisplayPeakCurrent::Max12_8Ma,
+                            DisplayPeakCurrent::Max6_4Ma => DisplayPeakCurrent::Max4_0Ma,
+                            DisplayPeakCurrent::Max9_3Ma => DisplayPeakCurrent::Max6_4Ma,
+                            DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max9_3Ma,
+                        };
+                        display.set_peak_current(self.current).unwrap();
+                    }
                 },
                 Event::RightReleased => match self.cur_setting {
                     Setting::Brightness => {
