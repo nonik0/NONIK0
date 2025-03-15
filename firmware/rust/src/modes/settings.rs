@@ -1,5 +1,8 @@
 use super::Mode;
-use crate::{Context, Display, DisplayPeakCurrent, Event, DEFAULT_BRIGHTNESS, DEFAULT_CURRENT};
+use crate::{
+    eeprom::{Eeprom, Setting as EepromSetting},
+    Context, Display, DisplayPeakCurrent, Event, DEFAULT_BRIGHTNESS, DEFAULT_CURRENT,
+};
 
 enum Setting {
     Brightness,
@@ -39,11 +42,12 @@ impl Mode for Settings {
                 Event::RightHeld => match self.cur_setting {
                     Setting::Brightness => self.cur_setting = Setting::Current,
                     Setting::Current => self.cur_setting = Setting::Brightness,
-                }
+                },
                 Event::LeftReleased => match self.cur_setting {
                     Setting::Brightness => {
                         self.brightness = (self.brightness + 15) % 16;
                         display.set_brightness(self.brightness).unwrap();
+                        Eeprom::instance().save_setting(EepromSetting::Brightness, self.brightness);
                     }
                     Setting::Current => {
                         self.current = match self.current {
@@ -53,12 +57,14 @@ impl Mode for Settings {
                             DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max9_3Ma,
                         };
                         display.set_peak_current(self.current).unwrap();
+                        Eeprom::instance().save_setting(EepromSetting::Current, self.current as u8);
                     }
                 },
                 Event::RightReleased => match self.cur_setting {
                     Setting::Brightness => {
                         self.brightness = (self.brightness + 1) % 16;
                         display.set_brightness(self.brightness).unwrap();
+                        Eeprom::instance().save_setting(EepromSetting::Brightness, self.brightness);
                     }
                     Setting::Current => {
                         self.current = match self.current {
@@ -68,6 +74,7 @@ impl Mode for Settings {
                             DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max4_0Ma,
                         };
                         display.set_peak_current(self.current).unwrap();
+                        Eeprom::instance().save_setting(EepromSetting::Current, self.current as u8);
                     }
                 },
                 _ => {}
@@ -98,22 +105,14 @@ impl Mode for Settings {
                     };
                     display.print_ascii_bytes(buffer).unwrap();
                 }
-                Setting::Current => {
-                    match self.current {
-                        DisplayPeakCurrent::Max4_0Ma => {
-                            display.print_ascii_bytes(b"Imax:4mA").unwrap()
-                        }
-                        DisplayPeakCurrent::Max6_4Ma => {
-                            display.print_ascii_bytes(b"Imax:6mA").unwrap()
-                        }
-                        DisplayPeakCurrent::Max9_3Ma => {
-                            display.print_ascii_bytes(b"Imax:9mA").unwrap()
-                        }
-                        DisplayPeakCurrent::Max12_8Ma => {
-                            display.print_ascii_bytes(b"Imx:13mA").unwrap()
-                        }
+                Setting::Current => match self.current {
+                    DisplayPeakCurrent::Max4_0Ma => display.print_ascii_bytes(b"Imax:4mA").unwrap(),
+                    DisplayPeakCurrent::Max6_4Ma => display.print_ascii_bytes(b"Imax:6mA").unwrap(),
+                    DisplayPeakCurrent::Max9_3Ma => display.print_ascii_bytes(b"Imax:9mA").unwrap(),
+                    DisplayPeakCurrent::Max12_8Ma => {
+                        display.print_ascii_bytes(b"Imx:13mA").unwrap()
                     }
-                }
+                },
             }
         }
     }
