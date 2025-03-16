@@ -8,6 +8,7 @@ const MAX_IDLE_CYCLES: u8 = 200;
 
 pub struct Nametag {
     name: [u8; NUM_CHARS],
+    name_updated: bool,
     last_update: u16,
     // edit tracking
     editing: bool,
@@ -19,16 +20,17 @@ pub struct Nametag {
 }
 
 impl Nametag {
-    pub fn new() -> Self {
+    pub fn new_with_name(name: &[u8; NUM_CHARS]) -> Self {
         Nametag {
-            name: *b" Stella ",
+            name: *name,
+            name_updated: false,
             last_update: 0,
 
             editing: false,
-            edit_name: *b" Stella ",
+            edit_name: *name,
             edit_index: 0,
             blink_counter: 0,
-            blink_char: b'_',
+            blink_char: BLINK_CHAR,
             idle_counter: 0,
         }
     }
@@ -37,6 +39,10 @@ impl Nametag {
         if c == b' ' {
             b'A'
         } else if c == b'Z' {
+            b'a'
+        } else if c == b'z' {
+            b'0'
+        } else if c == b'9' {
             b' '
         } else {
             c + 1
@@ -45,11 +51,34 @@ impl Nametag {
 
     fn prev_char(&self, c: u8) -> u8 {
         if c == b' ' {
+            b'9'
+        } else if c == b'0' {
+            b'z'
+        } else if c == b'a' {
             b'Z'
         } else if c == b'A' {
             b' '
         } else {
             c - 1
+        }
+    }
+
+    fn start_editing(&mut self) {
+        self.editing = true;
+        self.edit_name = self.name; // Copy name into edit buffer
+        self.edit_index = 0;
+        self.blink_counter = 0;
+        self.blink_char = BLINK_CHAR;
+        self.idle_counter = 0;
+    }
+
+    fn stop_editing(&mut self) {
+        self.editing = false;
+        self.edit_index = 0;
+        self.idle_counter = 0;
+        if self.edit_name != self.name {
+            self.name = self.edit_name;
+            self.name_updated = true;
         }
     }
 }
@@ -64,9 +93,7 @@ impl Mode for Nametag {
             self.idle_counter += 1;
 
             if self.idle_counter >= MAX_IDLE_CYCLES {
-                self.editing = false;
-                self.idle_counter = 0;
-                self.edit_index = 0;
+                self.stop_editing();
             }
 
             if self.blink_counter == 0 {
@@ -90,8 +117,8 @@ impl Mode for Nametag {
                 match event {
                     Event::LeftHeld => {
                         update = true;
-                        if self.edit_index == 0 {
-                            self.editing = false;
+                        if self.edit_index <= 0 {
+                            self.stop_editing();
                         } else {
                             self.edit_index = self.edit_index - 1;
                         }
@@ -99,30 +126,34 @@ impl Mode for Nametag {
                     Event::RightHeld => {
                         update = true;
                         self.edit_index = self.edit_index + 1;
-                        if self.edit_index == NUM_CHARS {
-                            self.edit_index = 0;
-                            self.editing = false;
+                        if self.edit_index >= NUM_CHARS {
+                            self.stop_editing();
                         }
                     }
                     Event::LeftReleased => {
                         update = true;
-                        self.name[self.edit_index] = self.prev_char(self.name[self.edit_index]);
-                        self.edit_name[self.edit_index] = self.name[self.edit_index];
+                        self.edit_name[self.edit_index] =
+                            self.prev_char(self.edit_name[self.edit_index]);
                     }
                     Event::RightReleased => {
                         update = true;
-                        self.name[self.edit_index] = self.next_char(self.name[self.edit_index]);
-                        self.edit_name[self.edit_index] = self.name[self.edit_index];
+                        self.edit_name[self.edit_index] =
+                            self.next_char(self.edit_name[self.edit_index]);
                     }
                     _ => {}
                 }
             }
         } else {
+            // not editing
             if let Some(event) = event {
                 match event {
                     Event::LeftHeld => {
-                        context.menu_counter += 1;
-                        context.mode_index = 0;
+                        // save name if eeprom if updated
+                        if self.name_updated {
+                            crate::eeprom::Eeprom::instance().save_setting_slice(crate::eeprom::EepromOffset::Name, &self.name);
+                            self.name_updated = false;
+                        }
+                        context.to_menu();
                         return;
                     }
                     Event::RightHeld => {
