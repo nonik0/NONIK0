@@ -5,11 +5,127 @@ use super::Mode;
 use heapless::Vec;
 use random_trait::Random; // Import the correct module based on feature flag
 
-const SKY_PERIOD: u8 = 7;
-const EARTH_PERIOD: u8 = 3;
+const DEFAULT_SKY_PERIOD: u8 = 7;
+const DEFAULT_EARTH_PERIOD: u8 = 3;
+const MAX_PERIOD: u8 = 15;
 
 // col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
 const SKY_COL: u8 = 0b0111_1111; // silhouetted mountain and clouds so sky pixels are all on
+
+enum Vibe {
+    Clouds,
+    Mountains,
+}
+
+pub struct Vibes {
+    last_update: u16,
+    cur_vibe: Vibe,
+
+    cloud_cols: Vec<u8, NUM_VIRT_COLS>,
+    cloud_counter: u8,
+    cloud_period: u8,
+    cloud_state: CloudState,
+
+    earth_cols: Vec<u8, NUM_VIRT_COLS>,
+    earth_counter: u8,
+    earth_period: u8,
+    earth_state: MountainState,
+}
+
+impl Vibes {
+    pub fn new() -> Self {
+        let mut cloud_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+        let cloud_counter: u8 = 0;
+        let cloud_state = CloudState::new();
+        for _ in 0..NUM_VIRT_COLS {
+            cloud_cols.push(SKY_COL).unwrap();
+        }
+
+        let mut earth_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+        let earth_counter: u8 = 0;
+        let earth_state = MountainState::new();
+        for _ in 0..NUM_VIRT_COLS {
+            earth_cols.push(SKY_COL).unwrap();
+        }
+
+        Vibes {
+            last_update: 0,
+            cur_vibe: Vibe::Mountains,
+
+            cloud_cols,
+            cloud_counter,
+            cloud_period: DEFAULT_SKY_PERIOD,
+            cloud_state,
+
+            earth_cols,
+            earth_counter,
+            earth_period: DEFAULT_EARTH_PERIOD,
+            earth_state,
+        }
+    }
+}
+
+impl Mode for Vibes {
+    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
+        let mut update = context.needs_update(&mut self.last_update);
+
+        if let Some(event) = event {
+            update = true;
+
+            // TODO: eeprom setting once implemented
+            match event {
+                Event::LeftHeld => {
+                    context.to_menu();
+                    return;
+                },
+                Event::RightHeld => match self.cur_vibe {
+                    Vibe::Clouds => self.cur_vibe = Vibe::Mountains,
+                    Vibe::Mountains => self.cur_vibe = Vibe::Clouds,
+                },
+                Event::LeftReleased => match self.cur_vibe {
+                    Vibe::Clouds => self.cloud_period = (self.cloud_period + MAX_PERIOD - 1) % MAX_PERIOD+1,
+                    Vibe::Mountains => self.earth_period = (self.earth_period + MAX_PERIOD - 1) % MAX_PERIOD+1,
+                },
+                Event::RightReleased => match self.cur_vibe {
+                    Vibe::Clouds => self.cloud_period = (self.cloud_period + 1) % MAX_PERIOD+1,
+                    Vibe::Mountains => self.earth_period = (self.earth_period + 1) % MAX_PERIOD+1,
+                },
+                _ => {},
+            }
+        }
+
+        self.cloud_counter = (self.cloud_counter + 1) % self.cloud_period;
+        if self.cloud_counter == 0 {
+            update = true;
+
+            let new_cloud_col = self.cloud_state.next_col();
+            self.cloud_cols.remove(0);
+            self.cloud_cols.push(new_cloud_col).unwrap();
+        }
+
+        self.earth_counter = (self.earth_counter + 1) % self.earth_period;
+        if self.earth_counter == 0 {
+            update = true;
+
+            let new_earth_col = self.earth_state.next_col();
+            self.earth_cols.remove(0);
+            self.earth_cols.push(new_earth_col).unwrap();
+        }
+
+        if update {
+            let mut cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
+            for i in 0..NUM_VIRT_COLS {
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    let cloud_col = self.cloud_cols.get(i).copied().unwrap_or(0);
+                    let earth_col = self.earth_cols.get(i).copied().unwrap_or(0);
+                    cols.push(cloud_col & earth_col).unwrap();
+                }
+            }
+
+            display.print_cols(cols.as_slice()).unwrap();
+        }
+    }
+}
 
 struct CloudState {
     loc: u8,
@@ -124,89 +240,3 @@ impl MountainState {
     }
 }
 
-pub struct Vibes {
-    last_update: u16,
-    cloud_cols: Vec<u8, NUM_VIRT_COLS>,
-    earth_cols: Vec<u8, NUM_VIRT_COLS>,
-    cloud_counter: u8,
-    earth_counter: u8,
-    cloud_state: CloudState,
-    earth_state: MountainState,
-}
-
-impl Vibes {
-    pub fn new() -> Self {
-        let mut cloud_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-        let mut earth_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-        let cloud_counter: u8 = 0;
-        let earth_counter: u8 = 0;
-
-        let cloud_state = CloudState::new();
-        let earth_state = MountainState::new();
-
-        // fill display buffer with initial columns
-        for _ in 0..NUM_VIRT_COLS {
-            cloud_cols.push(SKY_COL).unwrap();
-        }
-        for _ in 0..NUM_VIRT_COLS {
-            earth_cols.push(SKY_COL).unwrap();
-        }
-
-        Vibes {
-            last_update: 0,
-            cloud_cols,
-            earth_cols,
-            cloud_counter,
-            earth_counter,
-            cloud_state,
-            earth_state,
-        }
-    }
-}
-
-impl Mode for Vibes {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = context.needs_update(&mut self.last_update);
-
-        if let Some(event) = event {
-            match event {
-                Event::LeftHeld => {
-                    context.to_menu();
-                    return;
-                }
-                _ => {}
-            }
-        }
-
-        self.cloud_counter = (self.cloud_counter + 1) % SKY_PERIOD;
-        if self.cloud_counter == 0 {
-            let new_cloud_col = self.cloud_state.next_col();
-            self.cloud_cols.remove(0);
-            self.cloud_cols.push(new_cloud_col).unwrap();
-
-            update = true;
-        }
-
-        self.earth_counter = (self.earth_counter + 1) % EARTH_PERIOD;
-        if self.earth_counter == 0 {
-            let new_earth_col = self.earth_state.next_col();
-            self.earth_cols.remove(0);
-            self.earth_cols.push(new_earth_col).unwrap();
-
-            update = true;
-        }
-
-        if update {
-            let mut cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-            for i in 0..NUM_VIRT_COLS {
-                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                    let cloud_col = self.cloud_cols.get(i).copied().unwrap_or(0);
-                    let earth_col = self.earth_cols.get(i).copied().unwrap_or(0);
-                    cols.push(cloud_col & earth_col).unwrap();
-                }
-            }
-
-            display.print_cols(cols.as_slice()).unwrap();
-        }
-    }
-}
