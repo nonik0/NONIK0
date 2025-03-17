@@ -1,4 +1,4 @@
-use crate::{eeprom::EepromSettings, Display, Event, NUM_CHARS};
+use crate::{eeprom::EepromSettings, Display, Event, NUM_CHARS, Adc};
 use static_cell::make_static;
 
 mod game;
@@ -6,6 +6,7 @@ mod menu;
 mod nametag;
 mod random;
 mod settings;
+mod utils;
 mod vibes;
 
 pub use game::*;
@@ -13,6 +14,7 @@ pub use menu::*;
 pub use nametag::*;
 pub use random::*;
 pub use settings::*;
+pub use utils::*;
 pub use vibes::*;
 
 pub const NUM_MODES: u8 = 6;
@@ -76,11 +78,12 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
         b"    Game",
         b"  Random",
         b"Settings",
+        b"   Utils",
         b"   Vibes",
     ][index as usize]
 }
 
-pub fn take(settings: &EepromSettings) -> [&'static mut dyn Mode; NUM_MODES as usize] {
+pub fn take(adc: Adc, settings: &EepromSettings) -> [&'static mut dyn Mode; NUM_MODES as usize] {
     unsafe {
         if MODES_TAKEN {
             panic!("Modes already taken!");
@@ -93,7 +96,8 @@ pub fn take(settings: &EepromSettings) -> [&'static mut dyn Mode; NUM_MODES as u
     let game = make_static!(Game::new());
     let random = make_static!(Random::new());
     let settings = make_static!(Settings::new_with_settings(settings.brightness, settings.current));
+    let utils = make_static!(Utils::new_with_adc(adc));
     let vibes = make_static!(Vibes::new());
 
-    [menu, nametag, game, random, settings, vibes]
+    [menu, nametag, game, random, settings, utils, vibes]
 }

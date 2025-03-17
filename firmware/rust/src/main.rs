@@ -67,17 +67,18 @@ fn main() -> ! {
     eeprom::Eeprom::init(dp.NVMCTRL);
     let settings = eeprom::EepromSettings::read();
 
-    // read voltage from floating pin for maybe some entropy
-    let entropy_pin = pins.pb1.into_analog_input(&mut adc);
-    let seed_value_1 = entropy_pin.analog_read(&mut adc);
-    let seed_value_2 = entropy_pin.analog_read(&mut adc);
-    let seed_value_3 = entropy_pin.analog_read(&mut adc);
-    let seed_value_4 = entropy_pin.analog_read(&mut adc);
-    let seed_value = (seed_value_1 as u32) << 24 | (seed_value_2 as u32) << 16 | (seed_value_3 as u32) << 8 | seed_value_4 as u32;
-    Rand::seed(seed_value);
+    // TODO: seed from temp reading?
+    // // read voltage from floating pin for maybe some entropy
+    // let entropy_pin = pins.pb1.into_analog_input(&mut adc);
+    // let seed_value_1 = entropy_pin.analog_read(&mut adc);
+    // let seed_value_2 = entropy_pin.analog_read(&mut adc);
+    // let seed_value_3 = entropy_pin.analog_read(&mut adc);
+    // let seed_value_4 = entropy_pin.analog_read(&mut adc);
+    // let seed_value = (seed_value_1 as u32) << 24 | (seed_value_2 as u32) << 16 | (seed_value_3 as u32) << 8 | seed_value_4 as u32;
+    // Rand::seed(seed_value);
 
     let mut context = Context::default();
-    let modes = modes::take(&settings);
+    let modes = modes::take(adc, &settings);
 
     let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
         pins.pa6.into_output(),
