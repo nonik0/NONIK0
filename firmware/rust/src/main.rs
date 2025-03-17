@@ -11,22 +11,25 @@
 // TODO: implement EEPROM for persisting state
 // TODO: implement Random with OnceCell for portability, can use avr_hal sync types
 
-mod eeprom;
 mod input;
 mod modes;
 //mod panic;
 use panic_halt as _;
 mod random;
+mod saved_settings;
 
+use avrxmega_hal::eeprom::Eeprom;
 use avrxmega_hal::port::{mode::Output, *};
 use embedded_hal::delay::DelayNs;
 use modes::*;
 use random::Rand;
 
-type Adc = avrxmega_hal::adc::Adc<CoreClock>;
+// using until proper ADC HAL implementation
+type Adc0 = avrxmega_hal::pac::ADC0;
+type Vref = avrxmega_hal::pac::VREF;
+//type Adc = avrxmega_hal::adc::Adc<CoreClock>;
 type CoreClock = avrxmega_hal::clock::MHz10;
 type Delay = avrxmega_hal::delay::Delay<CoreClock>;
-type Event = input::InputEvent;
 type Display = hcms_29xx::Hcms29xx<
     NUM_CHARS,
     Pin<Output, PA6>,
@@ -38,6 +41,8 @@ type Display = hcms_29xx::Hcms29xx<
     Pin<Output, PB0>,
 >;
 type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
+type Event = input::InputEvent;
+type SavedSettings = saved_settings::SavedSettings;
 
 const DEFAULT_BRIGHTNESS: u8 = 12;
 const DEFAULT_CURRENT: DisplayPeakCurrent = DisplayPeakCurrent::Max6_4Ma;
@@ -59,26 +64,17 @@ fn main() -> ! {
     let dp = avrxmega_hal::Peripherals::take().unwrap();
     let pins = avrxmega_hal::pins!(dp);
 
-    let mut adc = Adc::new(dp.ADC0, Default::default());
+    Rand::seed(1);
+
     let mut buttons =
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
-    
-    eeprom::Eeprom::init(dp.NVMCTRL);
-    let settings = eeprom::EepromSettings::read();
 
-    // TODO: seed from temp reading?
-    // // read voltage from floating pin for maybe some entropy
-    // let entropy_pin = pins.pb1.into_analog_input(&mut adc);
-    // let seed_value_1 = entropy_pin.analog_read(&mut adc);
-    // let seed_value_2 = entropy_pin.analog_read(&mut adc);
-    // let seed_value_3 = entropy_pin.analog_read(&mut adc);
-    // let seed_value_4 = entropy_pin.analog_read(&mut adc);
-    // let seed_value = (seed_value_1 as u32) << 24 | (seed_value_2 as u32) << 16 | (seed_value_3 as u32) << 8 | seed_value_4 as u32;
-    // Rand::seed(seed_value);
+    let eeprom = Eeprom::new(dp.NVMCTRL);
+    let settings = saved_settings::SavedSettings::new(eeprom);
 
-    let mut context = Context::default();
-    let modes = modes::take(adc, &settings);
+    let mut context = Context::new(settings);
+    let modes = modes::take(dp.ADC0, dp.VREF, &context);
 
     let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
         pins.pa6.into_output(),
@@ -92,8 +88,8 @@ fn main() -> ! {
     .unwrap();
     display.begin().unwrap();
     display.display_unblank().unwrap();
-    display.set_brightness(settings.brightness).unwrap();
-    display.set_peak_current(settings.current).unwrap();
+    display.set_brightness(context.settings.brightness()).unwrap();
+    display.set_peak_current(context.settings.current()).unwrap();
 
     loop {
         let event = buttons.update();
@@ -105,7 +101,7 @@ fn main() -> ! {
             }
         }
 
-        modes[context.mode()].update(&event, &mut display, &mut context);
+        modes[context.mode()].update(&event, &mut context, &mut display);
 
         delay.delay_ms(BASE_DELAY_MS);
     }

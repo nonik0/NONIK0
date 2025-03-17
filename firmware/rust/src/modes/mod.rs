@@ -1,4 +1,4 @@
-use crate::{eeprom::EepromSettings, Display, Event, NUM_CHARS, Adc};
+use crate::{NUM_CHARS, Display, Event, SavedSettings};
 use static_cell::make_static;
 
 mod game;
@@ -17,7 +17,7 @@ pub use settings::*;
 pub use utils::*;
 pub use vibes::*;
 
-pub const NUM_MODES: u8 = 6;
+pub const NUM_MODES: u8 = 7;
 
 static mut MODES_TAKEN: bool = false;
 
@@ -25,9 +25,18 @@ static mut MODES_TAKEN: bool = false;
 pub struct Context {
     menu_counter: u16, // overflow issue
     mode_index: u8,
+    pub settings: SavedSettings,
 }
 
 impl Context {
+    pub fn new(settings: SavedSettings) -> Self {
+        Context {
+            menu_counter: 1,
+            mode_index: 1,
+            settings,
+        }
+    }
+
     #[inline(always)]
     pub fn is_menu(&mut self) -> bool {
         self.mode_index == 0
@@ -58,17 +67,8 @@ impl Context {
     }
 }
 
-impl Default for Context {
-    fn default() -> Self {
-        Context {
-            menu_counter: 1,
-            mode_index: 1,
-        }
-    }
-}
-
 pub trait Mode {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context);
+    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display);
 }
 
 pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
@@ -83,7 +83,7 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     ][index as usize]
 }
 
-pub fn take(adc: Adc, settings: &EepromSettings) -> [&'static mut dyn Mode; NUM_MODES as usize] {
+pub fn take(adc: crate::Adc0, vref: crate::Vref, context: &Context) -> [&'static mut dyn Mode; NUM_MODES as usize] {
     unsafe {
         if MODES_TAKEN {
             panic!("Modes already taken!");
@@ -92,11 +92,11 @@ pub fn take(adc: Adc, settings: &EepromSettings) -> [&'static mut dyn Mode; NUM_
     }
 
     let menu = make_static!(Menu::new());
-    let nametag = make_static!(Nametag::new_with_name(&settings.name));
+    let nametag = make_static!(Nametag::new_with_name(&context.settings.name()));
     let game = make_static!(Game::new());
     let random = make_static!(Random::new());
-    let settings = make_static!(Settings::new_with_settings(settings.brightness, settings.current));
-    let utils = make_static!(Utils::new_with_adc(adc));
+    let settings = make_static!(Settings::new_with_settings(context.settings.brightness(), context.settings.current()));
+    let utils = make_static!(Utils::new_with_adc(adc, vref));
     let vibes = make_static!(Vibes::new());
 
     [menu, nametag, game, random, settings, utils, vibes]

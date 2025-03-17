@@ -12,8 +12,8 @@ impl Game {
 }
 
 impl Mode for Game {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
-        let mut update = context.needs_update(&mut self.last_update);
+    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+        let update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
             match event {
