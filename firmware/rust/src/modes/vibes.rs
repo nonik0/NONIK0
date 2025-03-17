@@ -7,7 +7,7 @@ use random_trait::Random; // Import the correct module based on feature flag
 
 const DEFAULT_SKY_PERIOD: u8 = 7;
 const DEFAULT_EARTH_PERIOD: u8 = 3;
-const MAX_PERIOD: u8 = 15;
+const MAX_PERIOD: u8 = 30;
 
 // col bits: msb+1 is bottom row, lsb is top row, i.e. 0b0111_1111 is all on
 const SKY_COL: u8 = 0b0111_1111; // silhouetted mountain and clouds so sky pixels are all on
@@ -83,12 +83,28 @@ impl Mode for Vibes {
                     Vibe::Mountains => self.cur_vibe = Vibe::Clouds,
                 },
                 Event::LeftReleased => match self.cur_vibe {
-                    Vibe::Clouds => self.cloud_period = (self.cloud_period + MAX_PERIOD - 1) % MAX_PERIOD+1,
-                    Vibe::Mountains => self.earth_period = (self.earth_period + MAX_PERIOD - 1) % MAX_PERIOD+1,
+                    Vibe::Clouds => {
+                        if self.cloud_period < MAX_PERIOD {
+                            self.cloud_period += 1;
+                        }
+                    },
+                    Vibe::Mountains => {
+                        if self.earth_period < MAX_PERIOD {
+                            self.earth_period += 1;
+                        }
+                    },
                 },
                 Event::RightReleased => match self.cur_vibe {
-                    Vibe::Clouds => self.cloud_period = (self.cloud_period + 1) % MAX_PERIOD+1,
-                    Vibe::Mountains => self.earth_period = (self.earth_period + 1) % MAX_PERIOD+1,
+                    Vibe::Clouds => {
+                        if self.cloud_period > 1 {
+                            self.cloud_period -= 1;
+                        }
+                    },
+                    Vibe::Mountains => {
+                        if self.earth_period > 1 {
+                            self.earth_period -= 1;
+                        }
+                    },
                 },
                 _ => {},
             }
