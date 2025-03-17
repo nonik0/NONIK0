@@ -12,7 +12,6 @@ pub struct EepromSettings {
 
 impl EepromSettings {
     pub fn read() -> Self {
-        const MIN_SUPPORTED_VERSION: u8 = 1; // Define the minimum supported version
         let eeprom = crate::eeprom::Eeprom::instance();
         let version = eeprom.load_setting(crate::eeprom::EepromOffset::Version);
 
@@ -54,7 +53,7 @@ impl EepromSettings {
 static EEPROM_STATE: Mutex<RefCell<Option<EepromState>>> = Mutex::new(RefCell::new(None));
 
 struct EepromState {
-    cpu: CPU,
+    //cpu: CPU,
     nvmctrl: NVMCTRL,
 }
 
@@ -74,11 +73,11 @@ impl Eeprom {
     const EEPROM_UNINITIALIZED: u8 = 0xFF;
     const EEPROM_ADDR_START: u16 = 0x1400;
 
-    pub fn init(cpu: CPU, nvmctrl: NVMCTRL) {
+    pub fn init(nvmctrl: NVMCTRL) {
         avr_device::interrupt::free(|cs| {
             EEPROM_STATE
                 .borrow(cs)
-                .replace(Some(EepromState { cpu, nvmctrl }));
+                .replace(Some(EepromState { nvmctrl }));
         });
     }
 

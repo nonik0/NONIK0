@@ -23,6 +23,7 @@ use embedded_hal::delay::DelayNs;
 use modes::*;
 use random::Rand;
 
+type Adc = avrxmega_hal::adc::Adc<CoreClock>;
 type CoreClock = avrxmega_hal::clock::MHz10;
 type Delay = avrxmega_hal::delay::Delay<CoreClock>;
 type Event = input::InputEvent;
@@ -58,22 +59,22 @@ fn main() -> ! {
     let dp = avrxmega_hal::Peripherals::take().unwrap();
     let pins = avrxmega_hal::pins!(dp);
 
-    // let mut adc = avrxmega_hal::Adc::new(dp.ADC0, Default::default());
+    let mut adc = Adc::new(dp.ADC0, Default::default());
     let mut buttons =
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
-
-    // TODO: read from floating pin for entropy
-    Rand::seed(0xdeadbeef);
-
-    eeprom::Eeprom::init(dp.CPU, dp.NVMCTRL);
+    
+    eeprom::Eeprom::init(dp.NVMCTRL);
     let settings = eeprom::EepromSettings::read();
 
-    // // read voltage from floating pin for reasonable entropy
-    // let entropy_pin = pins.a0.into_analog_input(&mut adc);
-    // let seed_value_1 = entropy_pin.analog_read(&mut adc);
-    // let seed_value_2 = entropy_pin.analog_read(&mut adc);
-    // let seed_value = (seed_value_1 as u32) << 16 | seed_value_2 as u32;
+    // read voltage from floating pin for maybe some entropy
+    let entropy_pin = pins.pb1.into_analog_input(&mut adc);
+    let seed_value_1 = entropy_pin.analog_read(&mut adc);
+    let seed_value_2 = entropy_pin.analog_read(&mut adc);
+    let seed_value_3 = entropy_pin.analog_read(&mut adc);
+    let seed_value_4 = entropy_pin.analog_read(&mut adc);
+    let seed_value = (seed_value_1 as u32) << 24 | (seed_value_2 as u32) << 16 | (seed_value_3 as u32) << 8 | seed_value_4 as u32;
+    Rand::seed(seed_value);
 
     let mut context = Context::default();
     let modes = modes::take(&settings);
