@@ -8,11 +8,9 @@ const MAX_IDLE_CYCLES: u8 = 200;
 
 pub struct Nametag {
     name: [u8; NUM_CHARS],
-    name_updated: bool,
     last_update: u16,
     // edit tracking
     editing: bool,
-    edit_name: [u8; NUM_CHARS],
     edit_index: usize,
     blink_counter: u8,
     blink_char: u8,
@@ -23,11 +21,9 @@ impl Nametag {
     pub fn new_with_name(name: &[u8; NUM_CHARS]) -> Self {
         Nametag {
             name: *name,
-            name_updated: false,
             last_update: 0,
 
             editing: false,
-            edit_name: *name,
             edit_index: 0,
             blink_counter: 0,
             blink_char: BLINK_CHAR,
@@ -65,7 +61,6 @@ impl Nametag {
 
     fn start_editing(&mut self) {
         self.editing = true;
-        self.edit_name = self.name; // Copy name into edit buffer
         self.edit_index = 0;
         self.blink_counter = 0;
         self.blink_char = BLINK_CHAR;
@@ -76,15 +71,11 @@ impl Nametag {
         self.editing = false;
         self.edit_index = 0;
         self.idle_counter = 0;
-        if self.edit_name != self.name {
-            self.name = self.edit_name;
-            self.name_updated = true;
-        }
     }
 }
 
 impl Mode for Nametag {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
+    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 
         // different behavior when editing
@@ -100,11 +91,11 @@ impl Mode for Nametag {
                 update = true;
 
                 if self.blink_char == BLINK_CHAR {
-                    self.blink_char = self.edit_name[self.edit_index];
-                    self.edit_name[self.edit_index] = BLINK_CHAR;
+                    self.blink_char = self.name[self.edit_index];
+                    self.name[self.edit_index] = BLINK_CHAR;
                     self.blink_counter = BLINK_PERIOD - BLINK_PERIOD_ON;
                 } else {
-                    self.edit_name[self.edit_index] = self.blink_char;
+                    self.name[self.edit_index] = self.blink_char;
                     self.blink_char = BLINK_CHAR;
                 }
             }
@@ -132,13 +123,13 @@ impl Mode for Nametag {
                     }
                     Event::LeftReleased => {
                         update = true;
-                        self.edit_name[self.edit_index] =
-                            self.prev_char(self.edit_name[self.edit_index]);
+                        self.name[self.edit_index] =
+                            self.prev_char(self.name[self.edit_index]);
                     }
                     Event::RightReleased => {
                         update = true;
-                        self.edit_name[self.edit_index] =
-                            self.next_char(self.edit_name[self.edit_index]);
+                        self.name[self.edit_index] =
+                            self.next_char(self.name[self.edit_index]);
                     }
                     _ => {}
                 }
@@ -149,15 +140,14 @@ impl Mode for Nametag {
                 match event {
                     Event::LeftHeld => {
                         // save name if eeprom if updated
-                        if self.name_updated {
-                            crate::eeprom::Eeprom::instance().save_setting_slice(crate::eeprom::EepromOffset::Name, &self.name);
-                            self.name_updated = false;
+                        if self.name != context.settings.name() {
+                            context.settings.save_name(&self.name);
                         }
                         context.to_menu();
                         return;
                     }
                     Event::RightHeld => {
-                        self.editing = true;
+                        self.start_editing();
                         update = true;
                     }
                     _ => {}
@@ -166,11 +156,7 @@ impl Mode for Nametag {
         }
 
         if update {
-            if self.editing {
-                display.print_ascii_bytes(&self.edit_name).unwrap();
-            } else {
-                display.print_ascii_bytes(&self.name).unwrap();
-            }
+            display.print_ascii_bytes(&self.name).unwrap();
         }
     }
 }

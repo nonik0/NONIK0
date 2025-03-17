@@ -1,8 +1,5 @@
 use super::Mode;
-use crate::{
-    eeprom::{Eeprom, EepromOffset as EepromSetting},
-    Context, Display, DisplayPeakCurrent, Event,
-};
+use crate::{Context, Display, DisplayPeakCurrent, Event};
 
 enum Setting {
     Brightness,
@@ -14,8 +11,6 @@ pub struct Settings {
     last_update: u16,
     brightness: u8,
     current: DisplayPeakCurrent,
-    saved_brightness: u8,
-    saved_current: DisplayPeakCurrent,
 }
 
 impl Settings {
@@ -25,14 +20,12 @@ impl Settings {
             last_update: 0,
             brightness,
             current,
-            saved_brightness: brightness,
-            saved_current: current,
         }
     }
 }
 
 impl Mode for Settings {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
+    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -40,13 +33,11 @@ impl Mode for Settings {
             match event {
                 Event::LeftHeld => {
                     // Save settings when exiting if they have changed
-                    if self.brightness != self.saved_brightness {
-                        Eeprom::instance().save_setting(EepromSetting::Brightness, self.brightness);
-                        self.saved_brightness = self.brightness;
+                    if self.brightness != context.settings.brightness() {
+                        context.settings.save_brightness(self.brightness);
                     }
-                    if self.current != self.saved_current {
-                        Eeprom::instance().save_setting(EepromSetting::Current, self.current as u8);
-                        self.saved_current = self.current;
+                    if self.current != context.settings.current() {
+                        context.settings.save_current(self.current);
                     }
                     context.to_menu();
                     return;
@@ -121,16 +112,6 @@ impl Mode for Settings {
                         display.print_ascii_bytes(b"Cur: 13mA").unwrap()
                     }
                 },
-            }
-
-            // Save settings to EEPROM if they have changed
-            if self.brightness != self.saved_brightness {
-                Eeprom::instance().save_setting(EepromSetting::Brightness, self.brightness);
-                self.saved_brightness = self.brightness;
-            }
-            if self.current != self.saved_current {
-                Eeprom::instance().save_setting(EepromSetting::Current, self.current as u8);
-                self.saved_current = self.current;
             }
         }
     }

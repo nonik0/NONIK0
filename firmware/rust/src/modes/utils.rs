@@ -1,7 +1,6 @@
 use super::Mode;
 use crate::{
-    eeprom::{Eeprom, EepromOffset as EepromSetting},
-    Context, Display, DisplayPeakCurrent, Event, Adc,
+    Adc0, Context, Display, Event, Vref,
 };
 
 enum Util {
@@ -18,21 +17,35 @@ enum Util {
 pub struct Utils {
     cur_util: Util,
     last_update: u16,
-    adc: Adc, // Add ownership of Adc
+    adc: Adc0,
+    vref: Vref,
 }
 
 impl Utils {
-    pub fn new_with_adc(adc: Adc) -> Self {
+    pub fn new_with_adc(adc: Adc0, vref: Vref) -> Self {
         Utils {
             cur_util: Util::Temp,
             last_update: 0,
             adc,
+            vref,
         }
+    }
+
+    fn read_temp(&mut self) -> u16 {
+        // if Vref is not 1.1V
+        // //self.vref.ctrlb.modify(|_, w| w.adc0refen().clear_bit());
+        // self.vref.ctrla.modify(|_, w| w.adc0refsel()._1v1());
+
+        // self.adc_settings.ref_voltage = ReferenceVoltage::Internal;
+        // self.adc.initialize(self.adc_settings);
+        // self.adc
+        //     .read_blocking(&avrxmega_hal::adc::channel::Temperature)
+        0
     }
 }
 
 impl Mode for Utils {
-    fn update(&mut self, event: &Option<Event>, display: &mut Display, context: &mut Context) {
+    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -53,7 +66,7 @@ impl Mode for Utils {
                         Util::Resolution => Util::I2CDetect,
                     };
                     self.cur_util = next_util;
-                },
+                }
                 Event::LeftReleased => match self.cur_util {
                     Util::VrefSet => {}
                     _ => {}
