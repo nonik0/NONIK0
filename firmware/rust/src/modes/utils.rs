@@ -24,6 +24,7 @@ pub struct Utils {
 }
 
 impl Utils {
+    const DECIMAL_PRECISION: u16 = 2; // X.YY
     const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
         resolution: Resolution::_10bit,
         sample_number: SampleNumber::Acc1,
@@ -83,19 +84,29 @@ impl Utils {
     fn format_raw(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
         const PREFIX_LEN: usize = 3;
 
-        let (prefix, mut reading_val, suffix) = match self.cur_util {
+        let (prefix, mut value, mut decimals, suffix) = match self.cur_util {
             Util::ReadTemp => {
                 if self.show_raw {
-                    (b"Tf:", raw, None)
+                    (b"Tf:", raw, 0, None)
                 } else {
-                    (b"Tf:", self.temp_from_raw(raw), Some(b'\x98'))
+                    (
+                        b"Tf:",
+                        self.temp_from_raw(raw),
+                        Self::DECIMAL_PRECISION,
+                        Some(b'\x98'),
+                    )
                 }
             }
             Util::ReadVext => {
                 if self.show_raw {
-                    (b"Ve:", raw, None)
+                    (b"Ve:", raw, 0, None)
                 } else {
-                    (b"Ve:", self.voltage_from_raw(raw), Some(b'V'))
+                    (
+                        b"Ve:",
+                        self.voltage_from_raw(raw),
+                        Self::DECIMAL_PRECISION,
+                        Some(b'V'),
+                    )
                 }
             }
             _ => return,
@@ -107,18 +118,27 @@ impl Utils {
             buf[NUM_CHARS - 1] = suffix;
         }
 
+        let mut val_chars = 0;
         let reading_len = if suffix.is_some() {
             NUM_CHARS - PREFIX_LEN - 1
         } else {
             NUM_CHARS - PREFIX_LEN
         };
-        buf[PREFIX_LEN + reading_len - 1] = b'0';
         for index in (PREFIX_LEN..PREFIX_LEN + reading_len).rev() {
-            if reading_val > 0 {
-                buf[index] = b'0' + (reading_val % 10) as u8;
-                reading_val /= 10;
+            if decimals > 0 && val_chars == decimals {
+                buf[index] = b'.';
+                decimals = 0;
+            } else if value > 0 {
+                buf[index] = b'0' + (value % 10) as u8;
+                value /= 10;
+                val_chars += 1;
             } else {
-                buf[index] = if index == PREFIX_LEN + reading_len - 1 { b'0' } else { b' ' };
+                buf[index] = if val_chars < 3 {
+                    val_chars += 1;
+                    b'0'
+                } else {
+                    b' '
+                }; // for leading 0 in 0.XX
             }
         }
     }
@@ -159,9 +179,27 @@ impl Utils {
         }
     }
 
-    #[allow(unused_variables)]
     fn voltage_from_raw(&self, raw: u16) -> u16 {
-        0
+        // RAW_MAX = 2^RESOLUTION-1
+        // RAW_RES = RAW_MAX * (Vin/Vref)
+        // Vin = (RAW_RES/RAW_MAX) * Vref
+        // Vin = ((RAW_RES * Vref) / RAW_MAX) (integer arithmetic order
+        let raw = raw as u32;
+        let vrefe5: u32 = match self.adc_settings.ref_voltage {
+            ReferenceVoltage::VRef0_55V => 55000,  // 0.55 x 10^5
+            ReferenceVoltage::VRef1_1V => 110000,  // 1.1 x 10^5
+            ReferenceVoltage::VRef1_5V => 150000,  // 1.5 x 10^5
+            ReferenceVoltage::VRef2_5V => 250000,  // 2.5 x 10^5
+            ReferenceVoltage::VRef4_34V => 434000, // 4.34 x 10^5
+            ReferenceVoltage::Vdd => 360000,       // ~3.6V nominal with LIR2032, refine later
+        };
+        let raw_max: u32 = match self.adc_settings.resolution {
+            Resolution::_10bit => 1023, // 2^10 - 1
+            Resolution::_8bit => 255,   // 2^8 - 1
+        };
+        let precision_divider = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
+
+        (((raw * vrefe5) / raw_max) / precision_divider) as u16
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
@@ -255,10 +293,10 @@ impl Utils {
             Util::SetVref => {
                 self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
                     ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef1_1V,
-                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef2_5V,
+                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef1_5V,
+                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef2_5V,
                     ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef4_34V,
-                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::Vdd,
+                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::Vdd,
                     ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
                 };
             }
@@ -293,10 +331,10 @@ impl Utils {
             }
             Util::SetVref => {
                 self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
-                    ReferenceVoltage::Vdd => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef4_34V,
+                    ReferenceVoltage::Vdd => ReferenceVoltage::VRef4_34V,
                     ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef2_5V,
-                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_1V,
+                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_5V,
+                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef1_1V,
                     ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef0_55V,
                     ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef0_55V, // No wrap around
                 };
@@ -434,9 +472,9 @@ pub enum ReferenceVoltage {
     // internal refs
     VRef0_55V,
     VRef1_1V,
+    VRef1_5V,
     VRef2_5V,
     VRef4_34V,
-    VRef1_5V,
     // external ref
     Vdd,
 }
