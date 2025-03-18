@@ -129,6 +129,7 @@ dependencies = [
 [[package]]
 name = "hcms-29xx"
 version = "0.1.0"
+source = "git+https://github.com/nonik0/hcms-29xx?branch=main#1ffa28c92752627e9f2cb8f3f1f00b1472613207"
 dependencies = [
  "embedded-hal 1.0.0",
 ]
