@@ -26,6 +26,7 @@ use random::Rand;
 
 // using until proper ADC HAL implementation
 type Adc0 = avrxmega_hal::pac::ADC0;
+type Sigrow = avrxmega_hal::pac::SIGROW;
 type Vref = avrxmega_hal::pac::VREF;
 //type Adc = avrxmega_hal::adc::Adc<CoreClock>;
 type CoreClock = avrxmega_hal::clock::MHz10;
@@ -74,7 +75,7 @@ fn main() -> ! {
     let settings = saved_settings::SavedSettings::new(eeprom);
 
     let mut context = Context::new(settings);
-    let modes = modes::take(dp.ADC0, dp.VREF, &context);
+    let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context);
 
     let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
         pins.pa6.into_output(),
