@@ -73,13 +73,13 @@ pub trait Mode {
 
 pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     [
-        b"  NONIK0",
-        b" Nametag",
-        b"    Game",
-        b"  Random",
-        b"Settings",
-        b"   Utils",
-        b"   Vibes",
+        b"  NONIK0", // 0
+        b" Nametag", // 1
+        b"    Game", // 2
+        b"  Random", // 3
+        b"Settings", // 4
+        b"   Utils", // 5
+        b"   Vibes", // 6
     ][index as usize]
 }
 
