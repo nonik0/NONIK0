@@ -32,7 +32,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: 1,
+            mode_index: 5,
             settings,
         }
     }
@@ -83,7 +83,7 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     ][index as usize]
 }
 
-pub fn take(adc: crate::Adc0, vref: crate::Vref, context: &Context) -> [&'static mut dyn Mode; NUM_MODES as usize] {
+pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context: &Context) -> [&'static mut dyn Mode; NUM_MODES as usize] {
     unsafe {
         if MODES_TAKEN {
             panic!("Modes already taken!");
@@ -96,7 +96,7 @@ pub fn take(adc: crate::Adc0, vref: crate::Vref, context: &Context) -> [&'static
     let game = make_static!(Game::new());
     let random = make_static!(Random::new());
     let settings = make_static!(Settings::new_with_settings(context.settings.brightness(), context.settings.current()));
-    let utils = make_static!(Utils::new_with_adc(adc, vref));
+    let utils = make_static!(Utils::new_with_adc(adc, sigrow, vref));
     let vibes = make_static!(Vibes::new());
 
     [menu, nametag, game, random, settings, utils, vibes]
