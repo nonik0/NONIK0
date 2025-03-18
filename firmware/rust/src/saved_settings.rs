@@ -15,6 +15,7 @@ impl SavedSettings {
         SavedSettings { 0: eeprom }
     }
 
+    #[allow(dead_code)]
     #[inline(always)]
     pub fn version(&self) -> u8 {
         self.0.read_byte(SavedSettingOffset::Version as u16)
