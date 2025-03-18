@@ -1,26 +1,68 @@
 use super::Mode;
 use crate::{Adc0, Context, Display, Event, Sigrow, Vref};
 
+use avr_hal_generic::adc::{AdcChannel, ClockDivider};
+
+/// Select the voltage reference for the ADC peripheral
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ReferenceVoltage {
+    /// Internal 1.1V? reference.
+    Internal = 0b00,
+    /// VDD as reference voltage.
+    VDD = 0b01,
+}
+
+impl Default for ReferenceVoltage {
+    fn default() -> Self {
+        Self::Internal
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Resolution {
+    _10bit = 0b0,
+    _12bit = 0b1,
+}
+
+impl Default for Resolution {
+    fn default() -> Self {
+        Self::_10bit
+    }
+}
+
+/// Configuration for the ADC peripheral.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdcSettings {
+    pub clock_divider: ClockDivider,
+    pub ref_voltage: ReferenceVoltage,
+    pub resolution: Resolution,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Util {
-    I2CDetect,
+    //I2CDetect,
     Temp,
     Vext,
-    Vref,
+    //Vref,
     // ADC settings
-    VrefSet,
-    Prescaler,
-    Resolution,
+    //VrefSet,
+    //Prescaler,
+    //Resolution,
 }
 
 pub struct Utils {
     cur_util: Util,
     last_update: u16,
+
     adc0: Adc0,
     sigrow: Sigrow,
     vref: Vref,
     util_init: bool,
+
     buf: [u8; 8],
+    //vrefsel: Vref::CTRLA::ADC0REFSEL_R,
 }
 
 impl Utils {
@@ -32,7 +74,8 @@ impl Utils {
             sigrow,
             vref,
             util_init: false,
-            buf: [0; 8],
+            buf: b"Vext:...",
+            //vrefsel: Vref::CTRLA::ADC0REFSEL_R::default(),
         }
     }
 
@@ -41,13 +84,6 @@ impl Utils {
             self.util_init,
             self.adc0.command.read().stconv().bit_is_set(),
         ) {
-            // Measurement ongoing
-            (true, true) => None,
-            // Measurement complete, get result and start again
-            (true, false) => {
-                self.adc0.ctrla.write(|w| w.enable().set_bit());
-                Some(self.adc0.res.read().bits())
-            },
             // Other measurement ongoing
             (false, true) => None,
             // Set up for measurement and start
@@ -57,8 +93,17 @@ impl Utils {
                     Util::Vext => self.configure_vext(),
                     _ => {}
                 }
+                self.command.write(|w| w.stconv().set_bit());
+                self.util_init = true;
                 None
             }
+            // Measurement ongoing
+            (true, true) => None,
+            // Measurement complete, get result and start again
+            (true, false) => {
+                self.command.write(|w| w.stconv().set_bit());
+                Some(self.adc0.res.read().bits())
+            },
         }
     }
 
@@ -79,8 +124,6 @@ impl Utils {
         self.adc0.ctrld.modify(|_, w| w.initdly().dly16()); // INITDLY>= 32us x Fclk_adc
         self.adc0.sampctrl.modify(|_, w| w.samplen().bits(2)); // SAMPLEN >= 32us x Fclk_adc
         self.adc0.muxpos.modify(|_, w| w.muxpos().tempsense());
-        self.adc0.ctrla.write(|w| w.enable().set_bit());
-        self.util_init = true;
     }
 
     fn configure_vext(&mut self) {
@@ -95,8 +138,6 @@ impl Utils {
         // self.adc0.ctrld.reset();
         // self.adc0.sampctrl.reset();
         self.adc0.muxpos.modify(|_, w| w.muxpos().ain10()); // PB1/SDA
-        self.adc0.ctrla.write(|w| w.enable().set_bit());
-        self.util_init = true;
     }
 
     //fn format_temp(&mut self, display: &mut Display) {
@@ -128,6 +169,7 @@ impl Mode for Utils {
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
+                    self.adc0.ctrla.write(|w| w.enable().set_bit());
                     context.to_menu();
                     return;
                 }
@@ -135,45 +177,47 @@ impl Mode for Utils {
                     update = true;
                     self.util_init = false;
                     let next_util = match self.cur_util {
-                        Util::I2CDetect => {
-                            self.buf = *b"Temp:?\x98F";
-                            Util::Temp
-                        },
+                        // Util::I2CDetect => {
+                        //     self.buf = *b"Temp:?\x98F";
+                        //     Util::Temp
+                        // },
                         Util::Temp => {
                             self.buf = *b"Vext:...";
                             Util::Vext
                         },
                         Util::Vext => {
-                            self.buf = *b"Vref:?.?";
-                            Util::Vref
+                            self.buf = *b"Temp:?\x98F";
+                            Util::Temp
+                            //self.buf = *b"Vref:?.?";
+                            //Util::Vref
                         },
-                        Util::Vref => {
-                            self.buf = *b"RSet:?.?";
-                            Util::VrefSet
-                        },
-                        Util::VrefSet => {
-                            self.buf = *b"Prsc:???";
-                            Util::Prescaler
-                        },
-                        Util::Prescaler => {
-                            self.buf = *b"Res: ???";
-                            Util::Resolution
-                        },
-                        Util::Resolution => {
-                            self.buf = *b"I2C: ???";
-                            Util::I2CDetect
-                        },
+                        // Util::Vref => {
+                        //     self.buf = *b"RSet:?.?";
+                        //     Util::VrefSet
+                        // },
+                        // Util::VrefSet => {
+                        //     self.buf = *b"Prsc:???";
+                        //     Util::Prescaler
+                        // },
+                        // Util::Prescaler => {
+                        //     self.buf = *b"Res: ???";
+                        //     Util::Resolution
+                        // },
+                        // Util::Resolution => {
+                        //     self.buf = *b"I2C: ???";
+                        //     Util::I2CDetect
+                        // },
                     };
                     self.cur_util = next_util;
                 }
-                Event::LeftReleased => match self.cur_util {
-                    Util::VrefSet => {}
-                    _ => {}
-                },
-                Event::RightReleased => match self.cur_util {
-                    Util::VrefSet => {}
-                    _ => {}
-                },
+                // Event::LeftReleased => match self.cur_util {
+                //     Util::VrefSet => {}
+                //     _ => {}
+                // },
+                // Event::RightReleased => match self.cur_util {
+                //     Util::VrefSet => {}
+                //     _ => {}
+                // },
                 _ => {}
             }
         }
