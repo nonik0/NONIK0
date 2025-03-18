@@ -27,9 +27,8 @@ path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
 features = ["attiny1604"]
 
 [dependencies.hcms-29xx]
-path = "G:\\rust\\drivers\\hcms-29xx"
-#git = "https://github.com/nonik0/hcms-29xx"
-#branch = "main"
+git = "https://github.com/nonik0/hcms-29xx"
+branch = "main"
 
 # The latest releases of `proc-macro2` do not support the rust toolchain that
 # we use.  Thus, we must fix this dependency to an older version where our

@@ -1,38 +1,13 @@
 use super::Mode;
-use crate::{Adc0, Context, Display, Event, Sigrow, Vref};
-
-/// Configuration for the ADC peripheral.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AdcSettings {
-    pub clock_divider: ClockDivider,
-    pub ref_voltage: ReferenceVoltage,
-    pub resolution: Resolution,
-    pub samp_cap: bool,
-    //pub samples: u8,
-}
-
-impl Default for AdcSettings {
-    fn default() -> Self {
-        AdcSettings {
-            clock_divider: ClockDivider::default(),
-            ref_voltage: ReferenceVoltage::default(),
-            resolution: Resolution::default(),
-            samp_cap: true, // Vref default 1.1V > 1.0V
-                            //samples: 0,
-        }
-    }
-}
+use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Util {
-    //I2CDetect,
-    Temp,
-    Vext,
-    //Vref,
-    // ADC settings
-    //VrefSet,
-    //Prescaler,
-    //Resolution,
+    ReadTemp,
+    ReadVext,
+    SetVref,
+    SetPrescaler,
+    SetResolution,
 }
 
 pub struct Utils {
@@ -45,13 +20,13 @@ pub struct Utils {
     vref: Vref,
 
     util_init: bool,
-    buf: [u8; 8],
+    show_raw: bool,
 }
 
 impl Utils {
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
         Utils {
-            cur_util: Util::Vext,
+            cur_util: Util::ReadVext,
             last_update: 0,
 
             adc_settings: AdcSettings::default(),
@@ -60,11 +35,83 @@ impl Utils {
             vref,
 
             util_init: false,
-            buf: *b"Vext:...",
+            show_raw: false,
         }
     }
 
-    fn read_raw(&mut self, util: Util) -> Option<u16> {
+    fn format_util(&self) -> &[u8; NUM_CHARS] {
+        match self.cur_util {
+            Util::ReadTemp => b"Tf:....\x98",
+            Util::ReadVext => b"Ve:....V",
+            Util::SetVref => match self.adc_settings.ref_voltage {
+                ReferenceVoltage::IntRef0_55V => b"Vr:0.55V",
+                ReferenceVoltage::IntRef1_1V => b"Vr: 1.1V",
+                ReferenceVoltage::IntRef2_5V => b"Vr: 2.5V",
+                ReferenceVoltage::IntRef4_34V => b"Vr:4.34V",
+                ReferenceVoltage::IntRef1_5V => b"Vr: 1.5V",
+                ReferenceVoltage::Vdd => b"Vr:  Vdd",
+            },
+            Util::SetPrescaler => match self.adc_settings.clock_divider {
+                ClockDivider::Factor2 => b"Div:   2",
+                ClockDivider::Factor4 => b"Div:   4",
+                ClockDivider::Factor8 => b"Div:   8",
+                ClockDivider::Factor16 => b"Div:  16",
+                ClockDivider::Factor32 => b"Div:  32",
+                ClockDivider::Factor64 => b"Div:  64",
+                ClockDivider::Factor128 => b"Div: 128",
+                ClockDivider::Factor256 => b"Div: 256",
+            },
+            Util::SetResolution => match self.adc_settings.resolution {
+                Resolution::_10bit => b"Res: 10b",
+                Resolution::_8bit => b"Res:  8b",
+            },
+        }
+    }
+
+    fn format_raw(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
+        const PREFIX_LEN: usize = 3;
+
+        let (prefix, mut reading_val, suffix) = match self.cur_util {
+            Util::ReadTemp => {
+                if self.show_raw {
+                    (b"Tf:", raw, None)
+                } else {
+                    (b"Tf:", self.temp_from_raw(raw), Some(b'\x98'))
+                }
+            }
+            Util::ReadVext => {
+                if self.show_raw {
+                    (b"Ve:", raw, None)
+                } else {
+                    (b"Ve:", self.voltage_from_raw(raw), Some(b'V'))
+                }
+            }
+            _ => return,
+        };
+
+        // copy prefix and suffix to buf (i.e. "Ve:____V")
+        buf[..PREFIX_LEN].copy_from_slice(prefix);
+        if let Some(suffix) = suffix {
+            buf[NUM_CHARS - 1] = suffix;
+        }
+
+        let reading_len = if suffix.is_some() {
+            NUM_CHARS - PREFIX_LEN - 1
+        } else {
+            NUM_CHARS - PREFIX_LEN
+        };
+        buf[PREFIX_LEN + reading_len - 1] = b'0';
+        for index in (PREFIX_LEN..PREFIX_LEN + reading_len).rev() {
+            if reading_val > 0 {
+                buf[index] = b'0' + (reading_val % 10) as u8;
+                reading_val /= 10;
+            } else {
+                buf[index] = b' ';
+            }
+        }
+    }
+
+    fn read_raw(&mut self) -> Option<u16> {
         match (
             self.util_init,
             self.adc0.command.read().stconv().bit_is_set(),
@@ -73,10 +120,10 @@ impl Utils {
             (false, true) => None,
             // Set up for measurement and start
             (false, false) => {
-                match util {
-                    Util::Temp => self.configure_temp(),
-                    Util::Vext => self.configure_vext(),
-                    _ => {}
+                match self.cur_util {
+                    Util::ReadTemp => self.configure_temp(),
+                    Util::ReadVext => self.configure_vext(),
+                    _ => return None,
                 }
                 self.adc0.command.write(|w| w.stconv().set_bit());
                 self.util_init = true;
@@ -92,16 +139,31 @@ impl Utils {
         }
     }
 
-    // Fclk_per = F_coreclock / 1 (prescaler/1 default)
-    // Fclk_adc = Fclk_per / adc0.ctrlc.PRESC
+    fn voltage_from_raw(&self, raw: u16) -> u16 {
+        0
+    }
+
+    fn temp_from_raw(&mut self, raw: u16) -> u16 {
+        let sigrow_offset = self.sigrow.tempsense1.read().bits() as i16; // Read signed value from signature row
+        let sigrow_gain = self.sigrow.tempsense0.read().bits() as u16; // Read unsigned value from signature row
+        let adc_reading = self.adc0.res.read().bits() as u16; // ADC conversion result with 1.1 V internal reference
+
+        let mut raw_temp = (adc_reading as i32) - (sigrow_offset as i32); // Perform subtraction with proper casting
+        raw_temp *= sigrow_gain as i32; // Multiply with gain
+        raw_temp += 0x80; // Add 1/2 to get correct rounding
+        raw_temp >>= 8; // Divide result to get Kelvin
+                        //let temperature_in_k = raw_temp as u16; // Cast back to u16
+        let temp_f = ((raw_temp as i32 - 273) * 9 / 5 + 32) as u16;
+        temp_f
+    }
+
     fn configure_temp(&mut self) {
+        // Fclk_per = F_coreclock / 1 (prescaler/1 default)
+        // Fclk_adc = Fclk_per / adc0.ctrlc.PRESC
         self.vref.ctrla.modify(|_, w| w.adc0refsel()._1v1());
         self.vref.ctrlb.modify(|_, w| w.adc0refen().clear_bit());
-        self.adc0.ctrla.modify(|_, w| {
-            //w.ressel().clear_bit();
-            w.enable().set_bit()
-        });
-        self.adc0.ctrlc.modify(|_, w| {
+        self.adc0.ctrla.write(|w| w.enable().set_bit());
+        self.adc0.ctrlc.write(|w| {
             w.presc().div256(); // 32us x Fclk_adc_div0 = 1.25
             w.refsel().intref();
             w.sampcap().set_bit() // Vref >1 SAMPCAMP=1
@@ -123,8 +185,14 @@ impl Utils {
                 _ => w,
             });
         //self.vref.ctrlb.modify(|_, w| w.adc0refen().clear_bit());
-        
-        self.adc0.ctrla.write(|w| w.enable().set_bit());
+
+        self.adc0.ctrla.write(|w| {
+            match self.adc_settings.resolution {
+                Resolution::_10bit => w.ressel()._10bit(),
+                Resolution::_8bit => w.ressel()._8bit(),
+            };
+            w.enable().set_bit()
+        });
         self.adc0.ctrlc.write(|w| {
             match self.adc_settings.ref_voltage {
                 ReferenceVoltage::Vdd => w.refsel().vddref(),
@@ -142,31 +210,90 @@ impl Utils {
             };
             w.sampcap().bit(self.adc_settings.samp_cap)
         });
-        // self.adc0.ctrld.reset();
-        // self.adc0.sampctrl.reset();
+        self.adc0.ctrld.reset();
+        self.adc0.sampctrl.reset();
         self.adc0.muxpos.modify(|_, w| w.muxpos().ain10()); // PB1/SDA
     }
 
-    //fn format_temp(&mut self, display: &mut Display) {
-    // if let Some(temp) = self.read_raw() {
-    //     //let temp_f = ((temp as i32 - 273) * 9 / 5 + 32) as u16;
-    //     display.print_u32(temp as u32).unwrap();
-    // } else {
-    //     display.print_ascii_bytes(b"Temp: ...").unwrap();
-    // }
-    //let sigrow_offset = self.sigrow.tempsense1.read().bits() as i16; // Read signed value from signature row
-    //let sigrow_gain = self.sigrow.tempsense0.read().bits() as u16;   // Read unsigned value from signature row
-    //let adc_reading = self.adc0.res.read().bits() as u16;           // ADC conversion result with 1.1 V internal reference
+    fn increment_util_setting(&mut self) -> bool {
+        match self.cur_util {
+            Util::SetPrescaler => {
+                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
+                    ClockDivider::Factor2 => ClockDivider::Factor4,
+                    ClockDivider::Factor4 => ClockDivider::Factor8,
+                    ClockDivider::Factor8 => ClockDivider::Factor16,
+                    ClockDivider::Factor16 => ClockDivider::Factor32,
+                    ClockDivider::Factor32 => ClockDivider::Factor64,
+                    ClockDivider::Factor64 => ClockDivider::Factor128,
+                    ClockDivider::Factor128 => ClockDivider::Factor256,
+                    ClockDivider::Factor256 => ClockDivider::Factor256, // No wrap around
+                };
+            }
+            Util::SetVref => {
+                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
+                    ReferenceVoltage::IntRef0_55V => ReferenceVoltage::IntRef1_1V,
+                    ReferenceVoltage::IntRef1_1V => ReferenceVoltage::IntRef2_5V,
+                    ReferenceVoltage::IntRef2_5V => ReferenceVoltage::IntRef4_34V,
+                    ReferenceVoltage::IntRef4_34V => ReferenceVoltage::IntRef1_5V,
+                    ReferenceVoltage::IntRef1_5V => ReferenceVoltage::Vdd,
+                    ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
+                };
+            }
+            Util::SetResolution => {
+                self.adc_settings.resolution = match self.adc_settings.resolution {
+                    Resolution::_10bit => Resolution::_8bit,
+                    Resolution::_8bit => Resolution::_8bit, // No wrap around
+                };
+            }
+            Util::ReadTemp | Util::ReadVext => {
+                self.show_raw = !self.show_raw;
+                return false;
+            }
+            _ => return false,
+        };
 
-    // let mut raw_temp = (adc_reading as i32) - (sigrow_offset as i32); // Perform subtraction with proper casting
-    // raw_temp *= sigrow_gain as i32;                                  // Multiply with gain
-    // raw_temp += 0x80;                                                // Add 1/2 to get correct rounding
-    // raw_temp >>= 8;                                                  // Divide result to get Kelvin
-    // let temperature_in_k = raw_temp as u16;                          // Cast back to u16
+        true
+    }
 
-    // let temp_f = ((raw_temp as i32 - 273) * 9 / 5 + 32) as u16;
-    // display.print_ascii_bytes(format!("Temp: {:.1}\x98F", temp_f).as_bytes()).unwrap();
-    //}
+    fn decrement_util_setting(&mut self) -> bool {
+        match self.cur_util {
+            Util::SetPrescaler => {
+                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
+                    ClockDivider::Factor256 => ClockDivider::Factor128,
+                    ClockDivider::Factor128 => ClockDivider::Factor64,
+                    ClockDivider::Factor64 => ClockDivider::Factor32,
+                    ClockDivider::Factor32 => ClockDivider::Factor16,
+                    ClockDivider::Factor16 => ClockDivider::Factor8,
+                    ClockDivider::Factor8 => ClockDivider::Factor4,
+                    ClockDivider::Factor4 => ClockDivider::Factor2,
+                    ClockDivider::Factor2 => ClockDivider::Factor2, // No wrap around
+                };
+            }
+            Util::SetVref => {
+                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
+                    ReferenceVoltage::Vdd => ReferenceVoltage::IntRef1_5V,
+                    ReferenceVoltage::IntRef1_5V => ReferenceVoltage::IntRef4_34V,
+                    ReferenceVoltage::IntRef4_34V => ReferenceVoltage::IntRef2_5V,
+                    ReferenceVoltage::IntRef2_5V => ReferenceVoltage::IntRef1_1V,
+                    ReferenceVoltage::IntRef1_1V => ReferenceVoltage::IntRef0_55V,
+                    ReferenceVoltage::IntRef0_55V => ReferenceVoltage::IntRef0_55V, // No wrap around
+                };
+            }
+            Util::SetResolution => {
+                self.adc_settings.resolution = match self.adc_settings.resolution {
+                    Resolution::_8bit => Resolution::_10bit,
+                    Resolution::_10bit => Resolution::_10bit, // No wrap around
+                };
+            }
+            Util::ReadTemp | Util::ReadVext => {
+                self.show_raw = !self.show_raw;
+                return false;
+            }
+            _ => return false,
+        };
+
+        true
+    }
 }
 
 impl Mode for Utils {
@@ -181,60 +308,60 @@ impl Mode for Utils {
                     return;
                 }
                 Event::RightHeld => {
-                    update = true;
-                    self.util_init = false;
                     let next_util = match self.cur_util {
-                        // Util::I2CDetect => {
-                        //     self.buf = *b"Temp:?\x98F";
-                        //     Util::Temp
-                        // },
-                        Util::Temp => {
-                            self.buf = *b"Vext:...";
-                            Util::Vext
-                        }
-                        Util::Vext => {
-                            self.buf = *b"Temp:?\x98F";
-                            Util::Temp
-                            //self.buf = *b"Vref:?.?";
-                            //Util::Vref
-                        } // Util::Vref => {
-                          //     self.buf = *b"RSet:?.?";
-                          //     Util::VrefSet
-                          // },
-                          // Util::VrefSet => {
-                          //     self.buf = *b"Prsc:???";
-                          //     Util::Prescaler
-                          // },
-                          // Util::Prescaler => {
-                          //     self.buf = *b"Res: ???";
-                          //     Util::Resolution
-                          // },
-                          // Util::Resolution => {
-                          //     self.buf = *b"I2C: ???";
-                          //     Util::I2CDetect
-                          // },
+                        Util::ReadTemp => Util::ReadVext,
+                        Util::ReadVext => Util::SetVref,
+                        Util::SetVref => Util::SetPrescaler,
+                        Util::SetPrescaler => Util::SetResolution,
+                        Util::SetResolution => Util::ReadTemp,
                     };
                     self.cur_util = next_util;
+                    self.util_init = false;
+                    update = true;
                 }
-                // Event::LeftReleased => match self.cur_util {
-                //     Util::VrefSet => {}
-                //     _ => {}
-                // },
-                // Event::RightReleased => match self.cur_util {
-                //     Util::VrefSet => {}
-                //     _ => {}
-                // },
+                Event::LeftReleased => {
+                    update = self.decrement_util_setting();
+                }
+                Event::RightReleased => {
+                    update = self.increment_util_setting();
+                }
                 _ => {}
             }
         }
 
-        if let Some(reading) = self.read_raw(self.cur_util) {
-            //update = true;
-            display.print_u32(reading as u32).unwrap();
-        }
-
         if update {
-            display.print_ascii_bytes(&self.buf).unwrap();
+            let util_buf = self.format_util();
+            display.print_ascii_bytes(util_buf).unwrap();
+        } else if let Some(reading) = self.read_raw() {
+            let mut reading_buf = [0; NUM_CHARS];
+            self.format_raw(reading, &mut reading_buf);
+            display.print_ascii_bytes(&reading_buf).unwrap();
+        }
+    }
+}
+
+//
+// ADC stuff, eventually move to avr_hal impl
+//
+
+/// Configuration for the ADC peripheral.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AdcSettings {
+    pub clock_divider: ClockDivider,
+    pub ref_voltage: ReferenceVoltage,
+    pub resolution: Resolution,
+    pub samp_cap: bool,
+    //pub samples: u8,
+}
+
+impl Default for AdcSettings {
+    fn default() -> Self {
+        AdcSettings {
+            clock_divider: ClockDivider::default(),
+            ref_voltage: ReferenceVoltage::IntRef2_5V,
+            resolution: Resolution::default(),
+            samp_cap: true, // Vref default 1.1V > 1.0V
+                            //samples: 0,
         }
     }
 }
