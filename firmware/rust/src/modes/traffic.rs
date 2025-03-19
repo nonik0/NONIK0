@@ -44,6 +44,7 @@ pub struct Traffic {
     driver_lane: u8,
 
     goal_pos: u8,
+    crashed: bool,
 
     traffic_cols: Vec<u8, NUM_VIRT_COLS>,
     traffic_counter: u8,
@@ -54,7 +55,7 @@ pub struct Traffic {
 }
 
 impl Traffic {
-    const DRIVER_PERIOD_START: u8 = 1;
+    const DRIVER_PERIOD_START: u8 = 20;
     const TRAFFIC_PERIOD_START: u8 = 3;
     const GOAL_POS_START: u8 = ((NUM_VIRT_COLS >> 1) + hcms_29xx::CHAR_WIDTH) as u8;
     const TRUCK_MAX_COUNT_START: usize = 1;
@@ -77,6 +78,7 @@ impl Traffic {
             driver_lane: NUM_ROWS as u8 >> 1,
 
             goal_pos: Self::GOAL_POS_START,
+            crashed: false,
 
             // traffic will have random "blocks" (i.e. trucks) to driver around
             traffic_cols: buf,
@@ -108,11 +110,38 @@ impl Traffic {
         pos == self.driver_pos || pos == self.driver_pos - 1
     }
 
-    fn clear_trucks(&mut self) {
+    fn clear_traffic(&mut self) {
         for i in 0..Self::MAX_TRUCKS {
             self.trucks[i].length = 0;
         }
         self.truck_count = 0;
+
+        self.traffic_cols.clear();
+        for _ in 0..NUM_VIRT_COLS {
+            self.traffic_cols.push(0).unwrap();
+        }
+
+        // in future clear specific traffic only
+        // // clear all traffic behind goal
+        // for i in 0..self.goal_pos + 1 {
+        //     self.traffic_cols[i as usize] = 0;
+        // }
+        // // trim width 1 trucks that are behind goal
+        // if self.goal_pos < NUM_VIRT_COLS as u8 - 1 {
+        //     let col_after_goal = self
+        //         .traffic_cols
+        //         .get(self.goal_pos as usize + 1)
+        //         .copied()
+        //         .unwrap_or(0);
+        //     let col_after_goal2 = self
+        //         .traffic_cols
+        //         .get(self.goal_pos as usize + 2)
+        //         .copied()
+        //         .unwrap_or(0);
+        //     self.traffic_cols[self.goal_pos as usize + 1] &=
+        //         !(col_after_goal | (col_after_goal ^ col_after_goal2));
+        // }
+        // TODO: more cleanup
     }
 
     fn next_driver_pos(&mut self) -> Option<u8> {
@@ -138,9 +167,11 @@ impl Traffic {
 
             if truck.length > 0 {
                 next_col |= Self::truck_col(truck);
-
                 truck.length -= 1;
-                if truck.length == 0 {
+            } else if truck.length == 0 {
+                // delay in decreasing count allows for random gap behind
+                let mut rand = Rand::default();
+                if rand.get_u8() % 2 == 0 {
                     self.truck_count -= 1;
                 }
             }
@@ -149,36 +180,37 @@ impl Traffic {
         let mut rand = Rand::default();
 
         // Find the available gaps in the traffic lanes
-        // const MIN_GAP_SIZE: usize = 3;
+        const MIN_GAP_SIZE: usize = 3;
         let mut gap_lanes = [0u8; Self::MAX_TRUCKS + 1];
         let mut gap_sizes = [0u8; Self::MAX_TRUCKS + 1];
         let mut gap_count = 0;
-        // let mut lane = 0u8;
-        // while lane < NUM_ROWS as u8 {
-        //     let gap_lane = lane;
-        //     let gap_stop = loop {
-        //         if lane >= NUM_ROWS as u8
-        //             || next_col & (0b00000001 << (NUM_ROWS as u8 - lane as u8 - 1)) != 0
-        //         {
-        //             break lane;
-        //         }
-        //         lane += 1;
-        //     };
 
-        //     let gap_size = gap_stop - gap_lane - 1;
-        //     if gap_size >= MIN_GAP_SIZE as u8 {
-        //         gap_lanes[gap_count] = gap_lane;
-        //         gap_sizes[gap_count] = gap_size;
-        //         gap_count += 1;
-        //     }
-        // }
+        let mut gap_start_lane = 0u8;
+        while gap_start_lane < NUM_ROWS as u8 {
+            let mut gap_stop_lane = gap_start_lane;
 
-        gap_lanes[0] = 0;
-        gap_sizes[0] = NUM_ROWS as u8;
-        gap_count = 1;
+            while (gap_stop_lane < NUM_ROWS as u8)
+                && (next_col & (0b00000001 << (NUM_ROWS as u8 - gap_stop_lane as u8 - 1)) == 0)
+            {
+                gap_stop_lane += 1;
+            }
+
+            let gap_size = gap_stop_lane - gap_start_lane;
+            if gap_size >= MIN_GAP_SIZE as u8 {
+                gap_lanes[gap_count] = gap_start_lane;
+                gap_sizes[gap_count] = gap_size;
+                gap_count += 1;
+            }
+
+            gap_start_lane = gap_stop_lane + 1;
+        }
 
         // if there's room for another truck
-        if gap_count > 0 && self.truck_count < self.truck_max_count && rand.get_u8() % 10 == 0 {
+        let truck_chance = 7 + self.truck_count as u8;
+        if gap_count > 0
+            && self.truck_count < self.truck_max_count
+            && (rand.get_u8() % truck_chance) == 0
+        {
             for i in 0..Self::MAX_TRUCKS {
                 if self.trucks[i].length == 0 {
                     // pick random gap to place truck within, size 3 gaps can only have 1 width trucks
@@ -226,13 +258,10 @@ impl Mode for Traffic {
                     if !self.is_driving {
                         update = true;
 
-                        // clear trucks and signal restart by setting truck max count to 0
-                        self.clear_trucks();
+                        // clear traffic and signal restart by setting truck max count to 0
                         self.truck_max_count = 0;
-                        self.traffic_cols.clear();
-                        for _ in 0..NUM_VIRT_COLS {
-                            self.traffic_cols.push(0).unwrap();
-                        }
+                        self.clear_traffic();
+                        self.crashed = false;
                     }
                 }
                 Event::LeftReleased => {
@@ -265,31 +294,10 @@ impl Mode for Traffic {
                 // stage complete
                 if driver_pos == self.goal_pos {
                     self.is_driving = false;
-                    self.clear_trucks();
-
-                    // clear all traffic behind goal
-                    for i in 0..self.goal_pos+1 {
-                        self.traffic_cols[i as usize] = 0;
-                    }
-                    // trim width 1 trucks that are behind goal
-                    if self.goal_pos < NUM_VIRT_COLS as u8 - 1 {
-                        let col_after_goal = self
-                            .traffic_cols
-                            .get(self.goal_pos as usize + 1)
-                            .copied()
-                            .unwrap_or(0);
-                        let col_after_goal2 = self
-                            .traffic_cols
-                            .get(self.goal_pos as usize + 2)
-                            .copied()
-                            .unwrap_or(0);
-                        self.traffic_cols[self.goal_pos as usize + 1] &=
-                            !(col_after_goal | (col_after_goal ^ col_after_goal2));
-                    }
-                    // TODO: more cleanup
+                    self.clear_traffic();
                 }
             }
-        } else if self.truck_count == 0 {
+        } else if !self.crashed {
             update = true;
 
             self.driver_pos -= 1;
@@ -305,7 +313,7 @@ impl Mode for Traffic {
                     self.goal_pos += (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) as u8;
 
                     // goal resets increase diff
-                    if self.goal_pos >= NUM_VIRT_COLS as u8 {
+                    if self.goal_pos >= NUM_VIRT_COLS as u8 - 1 {
                         self.goal_pos = Self::GOAL_POS_START;
 
                         if self.truck_max_count < Self::MAX_TRUCKS {
@@ -338,7 +346,8 @@ impl Mode for Traffic {
                         // col_pos can wrap around at start but should be OK
                         let collision = col & self.driver_col() != 0;
                         if collision {
-                            //self.is_driving = false;
+                            self.is_driving = false;
+                            self.crashed = true;
                         }
 
                         col |= self.driver_col();
