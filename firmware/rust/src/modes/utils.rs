@@ -33,9 +33,8 @@ pub struct Utils {
 
     util_init: bool,
     show_raw: bool,
+    show_tempf: bool,
     display_buf: [u8; NUM_CHARS],
-    reading_buf: [u8; NUM_CHARS],
-    setting_buf: [u8; NUM_CHARS],
 }
 
 impl Utils {
@@ -46,10 +45,10 @@ impl Utils {
         samp_cap: true,
         ref_voltage: ReferenceVoltage::VRef2_5V,
         clock_divider: ClockDivider::Factor256,
-        init_delay: DelayCycles::Delay256,
+        init_delay: DelayCycles::Delay128,
         asdv: false,
-        sample_delay: 15,
-        sample_length: 31,
+        sample_delay: 10,
+        sample_length: 10,
     };
     // const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
     //     resolution: Resolution::_10bit,
@@ -77,9 +76,8 @@ impl Utils {
 
             util_init: false,
             show_raw: false,
+            show_tempf: false,
             display_buf: [0; NUM_CHARS],
-            reading_buf: [0; NUM_CHARS],
-            setting_buf: [0; NUM_CHARS],
         }
     }
 
@@ -162,7 +160,11 @@ impl Utils {
                         b"Tf:",
                         self.temp_from_raw(raw),
                         0,
-                        Some(b"\x98C".as_slice()),
+                        if self.show_tempf {
+                            Some(b"\x98F".as_slice())
+                        } else {
+                            Some(b"\x98C".as_slice())
+                        },
                     )
                 }
             }
@@ -304,7 +306,12 @@ impl Utils {
         temp >>= 8;
         let temp_k = temp as u16;
         let temp_c = temp_k.saturating_sub(273); // TODO <0
-        temp_c
+        if self.show_tempf {
+            let temp_f = (temp_c as u32 * 9 / 5) + 32;
+            temp_f as u16
+        } else {
+            temp_c
+        }
     }
 
     fn apply_adc_settings(&mut self, settings: AdcSettings) {
@@ -549,7 +556,20 @@ impl Mode for Utils {
                     if self.settings_active {
                         update = self.decrement_setting();
                     } else {
-                        self.show_raw = !self.show_raw;
+                        update = true;
+                        match self.cur_reading {
+                            AdcReading::Temp => {
+                                if !self.show_raw && !self.show_tempf {
+                                    self.show_tempf = true;
+                                } else if !self.show_raw && self.show_tempf {
+                                    self.show_tempf = false;
+                                    self.show_raw = true;
+                                } else {
+                                    self.show_raw = false;
+                                }
+                            }
+                            _ => self.show_raw = !self.show_raw,
+                        }
                     }
                 }
                 Event::RightReleased => {

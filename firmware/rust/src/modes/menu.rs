@@ -7,9 +7,9 @@ pub struct Menu {
 }
 
 impl Menu {
-    pub fn new() -> Self {
+    pub fn new(start_index: u8) -> Self {
         Menu {
-            index: 1,
+            index: start_index,
             last_update: 0,
         }
     }
