@@ -83,85 +83,76 @@ impl Utils {
         }
     }
 
-    fn format_setting(&mut self) -> &[u8; NUM_CHARS] {
+    fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
         match self.cur_setting {
             AdcSetting::Resolution => match self.adc_settings.resolution {
-                Resolution::_10bit => b"Res: 10b",
-                Resolution::_8bit => b"Res:  8b",
+                Resolution::_10bit => buf.copy_from_slice(b"Res: 10b"),
+                Resolution::_8bit => buf.copy_from_slice(b"Res:  8b"),
             },
             AdcSetting::SampleNumber => match self.adc_settings.sample_number {
-                SampleNumber::Acc1 => b"Snum:  1",
-                SampleNumber::Acc2 => b"Snum:  2",
-                SampleNumber::Acc4 => b"Snum:  4",
-                SampleNumber::Acc8 => b"Snum:  8",
-                SampleNumber::Acc16 => b"Snum: 16",
-                SampleNumber::Acc32 => b"Snum: 32",
-                SampleNumber::Acc64 => b"Snum: 64",
+                SampleNumber::Acc1 => buf.copy_from_slice(b"Snum:  1"),
+                SampleNumber::Acc2 => buf.copy_from_slice(b"Snum:  2"),
+                SampleNumber::Acc4 => buf.copy_from_slice(b"Snum:  4"),
+                SampleNumber::Acc8 => buf.copy_from_slice(b"Snum:  8"),
+                SampleNumber::Acc16 => buf.copy_from_slice(b"Snum: 16"),
+                SampleNumber::Acc32 => buf.copy_from_slice(b"Snum: 32"),
+                SampleNumber::Acc64 => buf.copy_from_slice(b"Snum: 64"),
             },
             AdcSetting::SampCap => {
                 if self.adc_settings.samp_cap {
-                    b"Scap:yes"
+                    buf.copy_from_slice(b"Scap:yes")
                 } else {
-                    b"Scap: no"
+                    buf.copy_from_slice(b"Scap: no")
                 }
             }
             AdcSetting::RefVoltage => match self.adc_settings.ref_voltage {
-                ReferenceVoltage::VRef0_55V => b"Vr:0.55V",
-                ReferenceVoltage::VRef1_1V => b"Vr: 1.1V",
-                ReferenceVoltage::VRef1_5V => b"Vr: 1.5V",
-                ReferenceVoltage::VRef2_5V => b"Vr: 2.5V",
-                ReferenceVoltage::VRef4_34V => b"Vr:4.34V",
-                ReferenceVoltage::Vdd => b"Vr:  Vdd",
+                ReferenceVoltage::VRef0_55V => buf.copy_from_slice(b"Vr:0.55V"),
+                ReferenceVoltage::VRef1_1V => buf.copy_from_slice(b"Vr: 1.1V"),
+                ReferenceVoltage::VRef1_5V => buf.copy_from_slice(b"Vr: 1.5V"),
+                ReferenceVoltage::VRef2_5V => buf.copy_from_slice(b"Vr: 2.5V"),
+                ReferenceVoltage::VRef4_34V => buf.copy_from_slice(b"Vr:4.34V"),
+                ReferenceVoltage::Vdd => buf.copy_from_slice(b"Vr:  Vdd"),
             },
             AdcSetting::Prescaler => match self.adc_settings.clock_divider {
-                ClockDivider::Factor2 => b"Div:   2",
-                ClockDivider::Factor4 => b"Div:   4",
-                ClockDivider::Factor8 => b"Div:   8",
-                ClockDivider::Factor16 => b"Div:  16",
-                ClockDivider::Factor32 => b"Div:  32",
-                ClockDivider::Factor64 => b"Div:  64",
-                ClockDivider::Factor128 => b"Div: 128",
-                ClockDivider::Factor256 => b"Div: 256",
+                ClockDivider::Factor2 => buf.copy_from_slice(b"Div:   2"),
+                ClockDivider::Factor4 => buf.copy_from_slice(b"Div:   4"),
+                ClockDivider::Factor8 => buf.copy_from_slice(b"Div:   8"),
+                ClockDivider::Factor16 => buf.copy_from_slice(b"Div:  16"),
+                ClockDivider::Factor32 => buf.copy_from_slice(b"Div:  32"),
+                ClockDivider::Factor64 => buf.copy_from_slice(b"Div:  64"),
+                ClockDivider::Factor128 => buf.copy_from_slice(b"Div: 128"),
+                ClockDivider::Factor256 => buf.copy_from_slice(b"Div: 256"),
             },
             AdcSetting::InitDelay => match self.adc_settings.init_delay {
-                DelayCycles::Delay0 => b"Idly:  0",
-                DelayCycles::Delay16 => b"Idly: 16",
-                DelayCycles::Delay32 => b"Idly: 32",
-                DelayCycles::Delay64 => b"Idly: 64",
-                DelayCycles::Delay128 => b"Idly:128",
-                DelayCycles::Delay256 => b"Idly:256",
+                DelayCycles::Delay0 => buf.copy_from_slice(b"Idly:  0"),
+                DelayCycles::Delay16 => buf.copy_from_slice(b"Idly: 16"),
+                DelayCycles::Delay32 => buf.copy_from_slice(b"Idly: 32"),
+                DelayCycles::Delay64 => buf.copy_from_slice(b"Idly: 64"),
+                DelayCycles::Delay128 => buf.copy_from_slice(b"Idly:128"),
+                DelayCycles::Delay256 => buf.copy_from_slice(b"Idly:256"),
             },
-            // Util::SetAsdv => {
-            //     if self.adc_settings.asdv {
-            //         b"As: True"
-            //     } else {
-            //         b"As:False"
-            //     }
-            // }
             AdcSetting::SampleDelay => {
                 format_uint(
-                    &mut self.setting_buf,
+                    buf,
                     b"Sdly:",
                     self.adc_settings.sample_delay as u16,
                     0,
                     None,
                 );
-                &self.setting_buf
             }
             AdcSetting::SampleLength => {
                 format_uint(
-                    &mut self.setting_buf,
+                    buf,
                     b"Slen:",
                     self.adc_settings.sample_length as u16,
                     0,
                     None,
                 );
-                &self.setting_buf
             }
         }
     }
 
-    fn format_raw(&mut self, raw: u16) -> &[u8; NUM_CHARS] {
+    fn format_reading(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
         let (prefix, value, decimals, suffix) = match self.cur_reading {
             AdcReading::Temp => {
                 if self.show_raw {
@@ -213,8 +204,7 @@ impl Utils {
             }
         };
 
-        format_uint(&mut self.reading_buf, prefix, value, decimals, suffix);
-        &self.reading_buf
+        format_uint(buf, prefix, value, decimals, suffix);
     }
 
     fn read_raw(&mut self) -> Option<u16> {
@@ -568,17 +558,26 @@ impl Mode for Utils {
             }
         }
 
-        if update {
-            let buf = if self.settings_active {
-                self.format_setting()
-            } else {
-                self.format_raw(0)
-            };
-            display.print_ascii_bytes(buf).unwrap();
-        } else if !self.settings_active {
+        // check for new ADC reading
+        let mut reading = 0;
+        if !update && !self.settings_active {
             if let Some(raw) = self.read_raw() {
-                let buf = self.format_raw(raw);
-                display.print_ascii_bytes(buf).unwrap();
+                update = true;
+                reading = raw;
+            }
+        }
+
+        if update {
+            let mut buf = [0; NUM_CHARS];
+            if self.settings_active {
+                self.format_setting(&mut buf);
+            } else {
+                self.format_reading(reading, &mut buf);
+            };
+
+            if buf != self.display_buf {
+                self.display_buf.copy_from_slice(&buf);
+                display.print_ascii_bytes(&buf).unwrap();
             }
         }
     }
