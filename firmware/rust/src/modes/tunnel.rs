@@ -128,72 +128,70 @@ impl TunnelState {
     }
 
     fn next_tunnel_col(&mut self) -> Option<u8> {
-        self.counter += 1;
-        if self.counter >= self.period {
-            self.counter = 0;
+        self.counter = (self.counter + 1) % self.period;
+        if self.counter != 0 {
+            return None;
+        }
+        
+        // shift/expand tunnel
+        let mut rand = Rand::default();
+        let will_shift = rand.get_u8() % 2 == 0;
+        if will_shift {
+            let shift_up = rand.get_u8() % 2 == 0;
+            if shift_up && self.pos + self.cur_width < NUM_ROWS as u8 - 1 {
+                self.pos += 1;
+            } else if !shift_up && self.pos > 0 {
+                self.pos -= 1;
+            }
+        }
 
-            // shift/expand tunnel
-            let mut rand = Rand::default();
-            let will_shift = rand.get_u8() % 2 == 0;
-            if will_shift {
-                let shift_up = rand.get_u8() % 2 == 0;
-                if shift_up && self.pos + self.cur_width < NUM_ROWS as u8 - 1 {
+        let will_change_size = !will_shift && rand.get_u8() % 2 == 0;
+        if will_change_size {
+            let shrink = rand.get_u8() % 2 == 0;
+            let shift = rand.get_u8() % 2 == 0;
+            if shrink && self.cur_width > self.min_width && self.pos + self.cur_width > 2 {
+                if shift {
                     self.pos += 1;
-                } else if !shift_up && self.pos > 0 {
+                }
+                self.cur_width -= 1;
+            } else if !shrink
+                && self.cur_width < self.max_width
+                && self.pos + self.cur_width < NUM_ROWS as u8 - 1
+            {
+                if shift && self.pos > 0 {
                     self.pos -= 1;
                 }
+                self.cur_width += 1;
             }
-
-            let will_change_size = !will_shift && rand.get_u8() % 2 == 0;
-            if will_change_size {
-                let shrink = rand.get_u8() % 2 == 0;
-                let shift = rand.get_u8() % 2 == 0;
-                if shrink && self.cur_width > self.min_width && self.pos + self.cur_width > 2 {
-                    if shift {
-                        self.pos += 1;
-                    }
-                    self.cur_width -= 1;
-                } else if !shrink
-                    && self.cur_width < self.max_width
-                    && self.pos + self.cur_width < NUM_ROWS as u8 - 1
-                {
-                    if shift && self.pos > 0 {
-                        self.pos -= 1;
-                    }
-                    self.cur_width += 1;
-                }
-            }
-
-            let difficulty_increase = rand.get_u8() % 100 == 0;
-            if difficulty_increase {
-                let min_size_decrease = rand.get_u8() % 3 != 0; // 2/3 chance to decrease min size
-                if min_size_decrease && self.min_width > 1 {
-                    self.min_width -= 1;
-                } else if self.max_width > self.min_width {
-                    self.min_width -= 1;
-                }
-            }
-
-            let period_decrease = !difficulty_increase && rand.get_u8() % 200 == 0;
-            if period_decrease {
-                if self.period > 1 {
-                    self.period -= 1;
-                }
-            }
-
-            // generate next col
-            let mut col: u8 = 0;
-            for i in 0..NUM_ROWS {
-                let bit = if (i as u8) >= self.pos && (i as u8) < self.pos + self.cur_width {
-                    0
-                } else {
-                    1
-                };
-                col = col << 1 | bit;
-            }
-            Some(col)
-        } else {
-            None
         }
+
+        let difficulty_increase = rand.get_u8() % 100 == 0;
+        if difficulty_increase {
+            let min_size_decrease = rand.get_u8() % 3 != 0; // 2/3 chance to decrease min size
+            if min_size_decrease && self.min_width > 1 {
+                self.min_width -= 1;
+            } else if self.max_width > self.min_width {
+                self.min_width -= 1;
+            }
+        }
+
+        let period_decrease = !difficulty_increase && rand.get_u8() % 200 == 0;
+        if period_decrease {
+            if self.period > 1 {
+                self.period -= 1;
+            }
+        }
+
+        // generate next col
+        let mut col: u8 = 0;
+        for i in 0..NUM_ROWS {
+            let bit = if (i as u8) >= self.pos && (i as u8) < self.pos + self.cur_width {
+                0
+            } else {
+                1
+            };
+            col = col << 1 | bit;
+        }
+        Some(col)
     }
 }
