@@ -53,10 +53,10 @@ impl Mode for Settings {
                     }
                     Setting::Current => {
                         self.current = match self.current {
-                            DisplayPeakCurrent::Max4_0Ma => DisplayPeakCurrent::Max12_8Ma,
-                            DisplayPeakCurrent::Max6_4Ma => DisplayPeakCurrent::Max4_0Ma,
-                            DisplayPeakCurrent::Max9_3Ma => DisplayPeakCurrent::Max6_4Ma,
                             DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max9_3Ma,
+                            DisplayPeakCurrent::Max9_3Ma => DisplayPeakCurrent::Max6_4Ma,
+                            DisplayPeakCurrent::Max6_4Ma => DisplayPeakCurrent::Max4_0Ma,
+                            DisplayPeakCurrent::Max4_0Ma => DisplayPeakCurrent::Max4_0Ma, // no wrap
                         };
                         display.set_peak_current(self.current).unwrap();
                     }
@@ -71,7 +71,7 @@ impl Mode for Settings {
                             DisplayPeakCurrent::Max4_0Ma => DisplayPeakCurrent::Max6_4Ma,
                             DisplayPeakCurrent::Max6_4Ma => DisplayPeakCurrent::Max9_3Ma,
                             DisplayPeakCurrent::Max9_3Ma => DisplayPeakCurrent::Max12_8Ma,
-                            DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max4_0Ma,
+                            DisplayPeakCurrent::Max12_8Ma => DisplayPeakCurrent::Max12_8Ma, // no wrap
                         };
                         display.set_peak_current(self.current).unwrap();
                     }
@@ -109,7 +109,7 @@ impl Mode for Settings {
                     DisplayPeakCurrent::Max6_4Ma => display.print_ascii_bytes(b"Cur: 6mA").unwrap(),
                     DisplayPeakCurrent::Max9_3Ma => display.print_ascii_bytes(b"Cur: 9mA").unwrap(),
                     DisplayPeakCurrent::Max12_8Ma => {
-                        display.print_ascii_bytes(b"Cur: 13mA").unwrap()
+                        display.print_ascii_bytes(b"Cur:13mA").unwrap()
                     }
                 },
             }
