@@ -1,11 +1,13 @@
 use super::Mode;
 use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use heapless::Vec;
+use random_trait::Random;
 
 pub struct Tunnel {
     last_update: u16,
-    display_buf: Vec<u8, NUM_VIRT_COLS>,
+    tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
 
+    is_running: bool,
     runner_pos: u8,
     tunnel_state: TunnelState,
 }
@@ -19,10 +21,15 @@ impl Tunnel {
 
         Tunnel {
             last_update: 0,
-            display_buf: buf,
-            runner_pos: 0,
+            tunnel_cols: buf,
+            is_running: true,
+            runner_pos: NUM_ROWS as u8 / 2,
             tunnel_state: TunnelState::new(),
         }
+    }
+
+    fn get_runner_col(&self) -> u8 {
+        0b00000001 << (NUM_ROWS as u8 - self.runner_pos - 1)
     }
 }
 
@@ -36,13 +43,28 @@ impl Mode for Tunnel {
                     context.to_menu();
                     return;
                 }
-                Event::RightHeld => {}
+                Event::RightHeld => {
+                    // restart if over
+                    if !self.is_running {
+                        update = true;
+
+                        self.tunnel_cols.clear();
+                        for _ in 0..NUM_VIRT_COLS {
+                            self.tunnel_cols.push(0).unwrap();
+                        }
+                        self.tunnel_state = TunnelState::new();
+
+                        self.is_running = true;
+                    }
+                }
                 Event::LeftReleased => {
+                    update = true;
                     if self.runner_pos < NUM_ROWS as u8 - 1 {
                         self.runner_pos += 1;
                     }
                 }
                 Event::RightReleased => {
+                    update = true;
                     if self.runner_pos > 0 {
                         self.runner_pos -= 1;
                     }
@@ -51,23 +73,32 @@ impl Mode for Tunnel {
             }
         }
 
-        if let Some(new_tunnel_col) = self.tunnel_state.next_tunnel_col() {
-            update = true;
+        if self.is_running {
+            if let Some(new_tunnel_col) = self.tunnel_state.next_tunnel_col() {
+                update = true;
 
-            self.display_buf.remove(0);
-            self.display_buf.push(new_tunnel_col).unwrap();
+                self.tunnel_cols.remove(0);
+                self.tunnel_cols.push(new_tunnel_col).unwrap();
+            }
         }
 
         if update {
             let mut cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
             for i in 0..NUM_VIRT_COLS {
-                // if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                //     let cloud_col = self.cloud_cols.get(i).copied().unwrap_or(0);
-                //     let earth_col = self.earth_cols.get(i).copied().unwrap_or(0);
-                //     cols.push(cloud_col & earth_col).unwrap();
-                // }
-                cols.push(self.display_buf.get(i).copied().unwrap_or(0))
-                    .unwrap();
+                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                    let mut col = self.tunnel_cols.get(i).copied().unwrap_or(0);
+
+                    if i == 2 as usize || i == 3 as usize {
+                        let collision = col & self.get_runner_col() != 0;
+                        if collision {
+                            self.is_running = false;
+                        }
+
+                        col |= self.get_runner_col();
+                    }
+
+                    cols.push(col).unwrap();
+                }
             }
 
             display.print_cols(cols.as_slice()).unwrap();
@@ -88,7 +119,7 @@ impl TunnelState {
     fn new() -> Self {
         TunnelState {
             counter: 0,
-            period: 10,
+            period: 3,
             pos: 1,
             cur_width: NUM_ROWS as u8 - 2,
             min_width: NUM_ROWS as u8 - 2,
@@ -101,7 +132,66 @@ impl TunnelState {
         if self.counter >= self.period {
             self.counter = 0;
 
-            None
+            // shift/expand tunnel
+            let mut rand = Rand::default();
+            let will_shift = rand.get_u8() % 2 == 0;
+            if will_shift {
+                let shift_up = rand.get_u8() % 2 == 0;
+                if shift_up && self.pos + self.cur_width < NUM_ROWS as u8 - 1 {
+                    self.pos += 1;
+                } else if !shift_up && self.pos > 0 {
+                    self.pos -= 1;
+                }
+            }
+
+            let will_change_size = !will_shift && rand.get_u8() % 2 == 0;
+            if will_change_size {
+                let shrink = rand.get_u8() % 2 == 0;
+                let shift = rand.get_u8() % 2 == 0;
+                if shrink && self.cur_width > self.min_width && self.pos + self.cur_width > 2 {
+                    if shift {
+                        self.pos += 1;
+                    }
+                    self.cur_width -= 1;
+                } else if !shrink
+                    && self.cur_width < self.max_width
+                    && self.pos + self.cur_width < NUM_ROWS as u8 - 1
+                {
+                    if shift && self.pos > 0 {
+                        self.pos -= 1;
+                    }
+                    self.cur_width += 1;
+                }
+            }
+
+            let difficulty_increase = rand.get_u8() % 100 == 0;
+            if difficulty_increase {
+                let min_size_decrease = rand.get_u8() % 3 != 0; // 2/3 chance to decrease min size
+                if min_size_decrease && self.min_width > 1 {
+                    self.min_width -= 1;
+                } else if self.max_width > self.min_width {
+                    self.min_width -= 1;
+                }
+            }
+
+            let period_decrease = !difficulty_increase && rand.get_u8() % 200 == 0;
+            if period_decrease {
+                if self.period > 1 {
+                    self.period -= 1;
+                }
+            }
+
+            // generate next col
+            let mut col: u8 = 0;
+            for i in 0..NUM_ROWS {
+                let bit = if (i as u8) >= self.pos && (i as u8) < self.pos + self.cur_width {
+                    0
+                } else {
+                    1
+                };
+                col = col << 1 | bit;
+            }
+            Some(col)
         } else {
             None
         }
