@@ -40,28 +40,28 @@ pub struct Utils {
 
 impl Utils {
     const DECIMAL_PRECISION: u16 = 2; // X.YY
-    const VOLTAGE_ADC_SETTINGS: AdcSettings = AdcSettings {
+    const ADC_SETTINGS: AdcSettings = AdcSettings {
         resolution: Resolution::_10bit,
-        sample_number: SampleNumber::Acc16,
+        sample_number: SampleNumber::Acc32,
         samp_cap: true,
         ref_voltage: ReferenceVoltage::VRef2_5V,
         clock_divider: ClockDivider::Factor256,
-        init_delay: DelayCycles::Delay0,
+        init_delay: DelayCycles::Delay256,
         asdv: false,
-        sample_delay: 0,
-        sample_length: 0,
+        sample_delay: 15,
+        sample_length: 31,
     };
-    const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
-        resolution: Resolution::_10bit,
-        sample_number: SampleNumber::Acc1,
-        samp_cap: true,
-        ref_voltage: ReferenceVoltage::VRef1_1V,
-        clock_divider: ClockDivider::Factor256,
-        init_delay: DelayCycles::Delay32,
-        asdv: false,
-        sample_delay: 0,
-        sample_length: 4,
-    };
+    // const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
+    //     resolution: Resolution::_10bit,
+    //     sample_number: SampleNumber::Acc16,
+    //     samp_cap: true,
+    //     ref_voltage: ReferenceVoltage::VRef1_1V,
+    //     clock_divider: ClockDivider::Factor256,
+    //     init_delay: DelayCycles::Delay32,
+    //     asdv: false,
+    //     sample_delay: 0,
+    //     sample_length: 4,
+    // };
 
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
         Utils {
@@ -70,7 +70,7 @@ impl Utils {
             settings_active: false,
             last_update: 0,
 
-            adc_settings: Self::VOLTAGE_ADC_SETTINGS,
+            adc_settings: Self::ADC_SETTINGS,
             adc0,
             sigrow,
             vref,
@@ -217,10 +217,14 @@ impl Utils {
             // Set up for measurement and start
             (false, false) => {
                 let (adc_settings, channel) = match self.cur_reading {
-                    AdcReading::Temp => (
-                        Self::TEMP_ADC_SETTINGS,
-                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE,
-                    ),
+                    AdcReading::Temp => {
+                        let mut temp_settings = self.adc_settings.clone();
+                        temp_settings.ref_voltage = ReferenceVoltage::VRef1_1V;
+                        (
+                            temp_settings,
+                            avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE,
+                        )
+                    }
                     AdcReading::Vext => (
                         self.adc_settings,
                         avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::AIN10,
@@ -245,7 +249,24 @@ impl Utils {
             // Measurement complete, get result and start again
             (true, false) => {
                 self.adc0.command.write(|w| w.stconv().set_bit());
-                Some(self.adc0.res.read().bits())
+
+                // let settings = match self.cur_reading {
+                //     AdcReading::Temp => Self::TEMP_ADC_SETTINGS,
+                //     _ => self.adc_settings,
+                // };
+                let acc_divisor = match self.adc_settings.sample_number {
+                    SampleNumber::Acc1 => 1,
+                    SampleNumber::Acc2 => 2,
+                    SampleNumber::Acc4 => 4,
+                    SampleNumber::Acc8 => 8,
+                    SampleNumber::Acc16 => 16,
+                    SampleNumber::Acc32 => 32,
+                    SampleNumber::Acc64 => 64,
+                };
+
+                let acc_raw = self.adc0.res.read().bits();
+                let raw = acc_raw / acc_divisor as u16;
+                Some(raw)
             }
         }
     }
@@ -269,17 +290,8 @@ impl Utils {
             Resolution::_8bit => 255,   // 2^8 - 1
         };
         let precision_divisor = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
-        let accumulation_divisor = match self.adc_settings.sample_number {
-            SampleNumber::Acc1 => 1,
-            SampleNumber::Acc2 => 2,
-            SampleNumber::Acc4 => 4,
-            SampleNumber::Acc8 => 8,
-            SampleNumber::Acc16 => 16,
-            SampleNumber::Acc32 => 32,
-            SampleNumber::Acc64 => 64,
-        };
 
-        ((((raw * vrefe5) / raw_max) / precision_divisor) / accumulation_divisor) as u16
+        (((raw * vrefe5) / raw_max) / precision_divisor) as u16
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
