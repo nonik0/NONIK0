@@ -21,7 +21,7 @@ enum AdcSetting {
     SampleLength,
 }
 
-pub struct Utils {
+pub struct Sensors {
     cur_reading: AdcReading,
     cur_setting: AdcSetting,
     settings_active: bool,
@@ -38,7 +38,7 @@ pub struct Utils {
     display_buf: [u8; NUM_CHARS],
 }
 
-impl Utils {
+impl Sensors {
     const DECIMAL_PRECISION: u16 = 2; // X.YY
     const ADC_SETTINGS: AdcSettings = AdcSettings {
         resolution: Resolution::_10bit,
@@ -64,7 +64,7 @@ impl Utils {
     // };
 
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
-        Utils {
+        Sensors {
             cur_reading: AdcReading::Temp,
             cur_setting: AdcSetting::Resolution,
             settings_active: false,
@@ -536,7 +536,7 @@ impl Utils {
     }
 }
 
-impl Mode for Utils {
+impl Mode for Sensors {
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 
