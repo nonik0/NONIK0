@@ -32,7 +32,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: 5,
+            mode_index: 1,
             settings,
         }
     }
@@ -91,7 +91,7 @@ pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context:
         MODES_TAKEN = true;
     }
 
-    let menu = make_static!(Menu::new());
+    let menu = make_static!(Menu::new(context.mode_index));
     let nametag = make_static!(Nametag::new_with_name(&context.settings.name()));
     let game = make_static!(Game::new());
     let random = make_static!(Random::new());
