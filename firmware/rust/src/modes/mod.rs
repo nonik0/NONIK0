@@ -1,20 +1,20 @@
 use crate::{NUM_CHARS, Display, Event, SavedSettings};
 use static_cell::make_static;
 
-mod game;
 mod menu;
 mod nametag;
 mod random;
+mod sensors;
 mod settings;
-mod utils;
+mod tunnel;
 mod vibes;
 
-pub use game::*;
 pub use menu::*;
 pub use nametag::*;
 pub use random::*;
+pub use sensors::*;
 pub use settings::*;
-pub use utils::*;
+pub use tunnel::*;
 pub use vibes::*;
 
 pub const NUM_MODES: u8 = 7;
@@ -32,7 +32,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: 1,
+            mode_index: 0,
             settings,
         }
     }
@@ -75,10 +75,10 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     [
         b"  NONIK0", // 0
         b" Nametag", // 1
-        b"    Game", // 2
-        b"  Random", // 3
+        b"  Random", // 2
+        b" Sensors", // 3
         b"Settings", // 4
-        b"   Utils", // 5
+        b"  Tunnel", // 5
         b"   Vibes", // 6
     ][index as usize]
 }
@@ -93,13 +93,13 @@ pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context:
 
     let menu = make_static!(Menu::new(context.mode_index));
     let nametag = make_static!(Nametag::new_with_name(&context.settings.name()));
-    let game = make_static!(Game::new());
     let random = make_static!(Random::new());
+    let sensors = make_static!(Sensors::new_with_adc(adc, sigrow, vref));
     let settings = make_static!(Settings::new_with_settings(context.settings.brightness(), context.settings.current()));
-    let utils = make_static!(Utils::new_with_adc(adc, sigrow, vref));
+    let tunnel = make_static!(Tunnel::new());
     let vibes = make_static!(Vibes::new());
 
-    utils.seed_rand();
+    sensors.seed_rand();
 
-    [menu, nametag, game, random, settings, utils, vibes]
+    [menu, nametag, random, sensors, settings, tunnel, vibes]
 }
