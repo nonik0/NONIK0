@@ -1,3 +1,5 @@
+use core::num;
+
 use super::Mode;
 use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
 
@@ -5,9 +7,54 @@ use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
 enum Util {
     ReadTemp,
     ReadVext,
-    SetVref,
-    SetPrescaler,
     SetResolution,
+    SetSampleNumber,
+    SetSampCap,
+    SetRefVoltage,
+    SetPrescaler,
+    SetInitDelay,
+    //SetAsdv,
+    SetSampleDelay,
+    SetSampleLength,
+}
+
+// helper function to format an unsigned integer with a prefix and suffix value
+fn format_uint(buf: &mut [u8], prefix: &[u8], value: u16, decimal_digits: u16, suffix: Option<u8>) {
+    let num_chars = buf.len();
+    let prefix_len = prefix.len();
+
+    // copy prefix and suffix to buf (i.e. "Ve:____V")
+    buf[..prefix_len].copy_from_slice(prefix);
+    if let Some(suffix) = suffix {
+        buf[num_chars - 1] = suffix;
+    }
+
+    // now copy the value by digit into buf from the right
+    let mut need_decimal = decimal_digits > 0;
+    let mut digits_in_buf = 0;
+    let mut value = value;
+    let value_len = if suffix.is_some() {
+        num_chars - prefix_len - 1
+    } else {
+        num_chars - prefix_len
+    };
+    for index in (prefix_len..prefix_len + value_len).rev() {
+        if need_decimal && digits_in_buf == decimal_digits {
+            buf[index] = b'.';
+            need_decimal = false;
+        } else if value > 0 {
+            buf[index] = b'0' + (value % 10) as u8;
+            value /= 10;
+            digits_in_buf += 1;
+        } else {
+            buf[index] = if digits_in_buf < (1 + decimal_digits) {
+                digits_in_buf += 1;
+                b'0'
+            } else {
+                b' '
+            };
+        }
+    }
 }
 
 pub struct Utils {
@@ -21,6 +68,7 @@ pub struct Utils {
 
     util_init: bool,
     show_raw: bool,
+    buf: [u8; NUM_CHARS],
 }
 
 impl Utils {
@@ -39,7 +87,7 @@ impl Utils {
 
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
         Utils {
-            cur_util: Util::ReadVext,
+            cur_util: Util::ReadTemp,
             last_update: 0,
 
             adc_settings: AdcSettings::default(),
@@ -49,19 +97,40 @@ impl Utils {
 
             util_init: false,
             show_raw: false,
+            buf: [0; NUM_CHARS],
         }
     }
 
-    fn format_util(&self) -> &[u8; NUM_CHARS] {
+    fn format_util(&mut self) -> &[u8; NUM_CHARS] {
         match self.cur_util {
             Util::ReadTemp => b"Tf:....\x98",
             Util::ReadVext => b"Ve:....V",
-            Util::SetVref => match self.adc_settings.ref_voltage {
+            Util::SetResolution => match self.adc_settings.resolution {
+                Resolution::_10bit => b"Res: 10b",
+                Resolution::_8bit => b"Res:  8b",
+            },
+            Util::SetSampleNumber => match self.adc_settings.sample_number {
+                SampleNumber::Acc1 => b"Snum:  1",
+                SampleNumber::Acc2 => b"Snum:  2",
+                SampleNumber::Acc4 => b"Snum:  4",
+                SampleNumber::Acc8 => b"Snum:  8",
+                SampleNumber::Acc16 => b"Snum: 16",
+                SampleNumber::Acc32 => b"Snum: 32",
+                SampleNumber::Acc64 => b"Snum: 64",
+            },
+            Util::SetSampCap => {
+                if self.adc_settings.samp_cap {
+                    b"Scap:yes"
+                } else {
+                    b"Scap: no"
+                }
+            }
+            Util::SetRefVoltage => match self.adc_settings.ref_voltage {
                 ReferenceVoltage::VRef0_55V => b"Vr:0.55V",
                 ReferenceVoltage::VRef1_1V => b"Vr: 1.1V",
+                ReferenceVoltage::VRef1_5V => b"Vr: 1.5V",
                 ReferenceVoltage::VRef2_5V => b"Vr: 2.5V",
                 ReferenceVoltage::VRef4_34V => b"Vr:4.34V",
-                ReferenceVoltage::VRef1_5V => b"Vr: 1.5V",
                 ReferenceVoltage::Vdd => b"Vr:  Vdd",
             },
             Util::SetPrescaler => match self.adc_settings.clock_divider {
@@ -74,17 +143,48 @@ impl Utils {
                 ClockDivider::Factor128 => b"Div: 128",
                 ClockDivider::Factor256 => b"Div: 256",
             },
-            Util::SetResolution => match self.adc_settings.resolution {
-                Resolution::_10bit => b"Res: 10b",
-                Resolution::_8bit => b"Res:  8b",
+            Util::SetInitDelay => match self.adc_settings.init_delay {
+                DelayCycles::Delay0 => b"Idly:  0",
+                DelayCycles::Delay16 => b"Idly: 16",
+                DelayCycles::Delay32 => b"Idly: 32",
+                DelayCycles::Delay64 => b"Idly: 64",
+                DelayCycles::Delay128 => b"Idly:128",
+                DelayCycles::Delay256 => b"Idly:256",
             },
+            // Util::SetAsdv => {
+            //     if self.adc_settings.asdv {
+            //         b"As: True"
+            //     } else {
+            //         b"As:False"
+            //     }
+            // }
+            Util::SetSampleDelay => {
+                format_uint(
+                    &mut self.buf,
+                    b"Sdly:",
+                    self.adc_settings.sample_delay as u16,
+                    0,
+                    None,
+                );
+                &self.buf
+            }
+            Util::SetSampleLength => {
+                format_uint(
+                    &mut self.buf,
+                    b"Slen:",
+                    self.adc_settings.sample_length as u16,
+                    0,
+                    None,
+                );
+                &self.buf
+            }
         }
     }
 
     fn format_raw(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
         const PREFIX_LEN: usize = 3;
 
-        let (prefix, mut value, mut decimals, suffix) = match self.cur_util {
+        let (prefix, value, decimals, suffix) = match self.cur_util {
             Util::ReadTemp => {
                 if self.show_raw {
                     (b"Tf:", raw, 0, None)
@@ -112,35 +212,7 @@ impl Utils {
             _ => return,
         };
 
-        // copy prefix and suffix to buf (i.e. "Ve:____V")
-        buf[..PREFIX_LEN].copy_from_slice(prefix);
-        if let Some(suffix) = suffix {
-            buf[NUM_CHARS - 1] = suffix;
-        }
-
-        let mut val_chars = 0;
-        let reading_len = if suffix.is_some() {
-            NUM_CHARS - PREFIX_LEN - 1
-        } else {
-            NUM_CHARS - PREFIX_LEN
-        };
-        for index in (PREFIX_LEN..PREFIX_LEN + reading_len).rev() {
-            if decimals > 0 && val_chars == decimals {
-                buf[index] = b'.';
-                decimals = 0;
-            } else if value > 0 {
-                buf[index] = b'0' + (value % 10) as u8;
-                value /= 10;
-                val_chars += 1;
-            } else {
-                buf[index] = if val_chars < 3 {
-                    val_chars += 1;
-                    b'0'
-                } else {
-                    b' '
-                }; // for leading 0 in 0.XX
-            }
-        }
+        format_uint(buf, prefix, value, decimals, suffix);
     }
 
     fn read_raw(&mut self) -> Option<u16> {
@@ -197,9 +269,18 @@ impl Utils {
             Resolution::_10bit => 1023, // 2^10 - 1
             Resolution::_8bit => 255,   // 2^8 - 1
         };
-        let precision_divider = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
+        let precision_divisor = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
+        let accumulation_divisor = match self.adc_settings.sample_number {
+            SampleNumber::Acc1 => 1,
+            SampleNumber::Acc2 => 2,
+            SampleNumber::Acc4 => 4,
+            SampleNumber::Acc8 => 8,
+            SampleNumber::Acc16 => 16,
+            SampleNumber::Acc32 => 32,
+            SampleNumber::Acc64 => 64,
+        };
 
-        (((raw * vrefe5) / raw_max) / precision_divider) as u16
+        ((((raw * vrefe5) / raw_max) / precision_divisor) / accumulation_divisor) as u16
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
@@ -276,29 +357,11 @@ impl Utils {
             .write(|w| w.samplen().bits(settings.sample_length));
     }
 
-    fn increment_util_setting(&mut self) -> bool {
+    fn decrement_util_setting(&mut self) -> bool {
         match self.cur_util {
-            Util::SetPrescaler => {
-                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
-                    ClockDivider::Factor2 => ClockDivider::Factor4,
-                    ClockDivider::Factor4 => ClockDivider::Factor8,
-                    ClockDivider::Factor8 => ClockDivider::Factor16,
-                    ClockDivider::Factor16 => ClockDivider::Factor32,
-                    ClockDivider::Factor32 => ClockDivider::Factor64,
-                    ClockDivider::Factor64 => ClockDivider::Factor128,
-                    ClockDivider::Factor128 => ClockDivider::Factor256,
-                    ClockDivider::Factor256 => ClockDivider::Factor256, // No wrap around
-                };
-            }
-            Util::SetVref => {
-                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
-                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef1_1V,
-                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef2_5V,
-                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef4_34V,
-                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::Vdd,
-                    ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
-                };
+            Util::ReadTemp | Util::ReadVext => {
+                self.show_raw = !self.show_raw;
+                return false;
             }
             Util::SetResolution => {
                 self.adc_settings.resolution = match self.adc_settings.resolution {
@@ -306,17 +369,30 @@ impl Utils {
                     Resolution::_8bit => Resolution::_8bit, // No wrap around
                 };
             }
-            Util::ReadTemp | Util::ReadVext => {
-                self.show_raw = !self.show_raw;
-                return false;
+            Util::SetSampleNumber => {
+                self.adc_settings.sample_number = match self.adc_settings.sample_number {
+                    SampleNumber::Acc64 => SampleNumber::Acc32,
+                    SampleNumber::Acc32 => SampleNumber::Acc16,
+                    SampleNumber::Acc16 => SampleNumber::Acc8,
+                    SampleNumber::Acc8 => SampleNumber::Acc4,
+                    SampleNumber::Acc4 => SampleNumber::Acc2,
+                    SampleNumber::Acc2 => SampleNumber::Acc1,
+                    SampleNumber::Acc1 => SampleNumber::Acc1, // No wrap around
+                };
             }
-        };
-
-        true
-    }
-
-    fn decrement_util_setting(&mut self) -> bool {
-        match self.cur_util {
+            Util::SetSampCap => {
+                self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
+            }
+            Util::SetRefVoltage => {
+                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
+                    ReferenceVoltage::Vdd => ReferenceVoltage::VRef4_34V,
+                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef2_5V,
+                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_5V,
+                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef1_1V,
+                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef0_55V,
+                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef0_55V, // No wrap around
+                };
+            }
             Util::SetPrescaler => {
                 self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
                     ClockDivider::Factor256 => ClockDivider::Factor128,
@@ -329,15 +405,35 @@ impl Utils {
                     ClockDivider::Factor2 => ClockDivider::Factor2, // No wrap around
                 };
             }
-            Util::SetVref => {
-                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
-                    ReferenceVoltage::Vdd => ReferenceVoltage::VRef4_34V,
-                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef2_5V,
-                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef1_1V,
-                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef0_55V,
-                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef0_55V, // No wrap around
+            Util::SetInitDelay => {
+                self.adc_settings.init_delay = match self.adc_settings.init_delay {
+                    DelayCycles::Delay256 => DelayCycles::Delay128,
+                    DelayCycles::Delay128 => DelayCycles::Delay64,
+                    DelayCycles::Delay64 => DelayCycles::Delay32,
+                    DelayCycles::Delay32 => DelayCycles::Delay16,
+                    DelayCycles::Delay16 => DelayCycles::Delay0,
+                    DelayCycles::Delay0 => DelayCycles::Delay0, // No wrap around
                 };
+            }
+            // Util::SetAsdv => {
+            //     self.adc_settings.asdv = !self.adc_settings.asdv;
+            // }
+            Util::SetSampleDelay => {
+                self.adc_settings.sample_delay = self.adc_settings.sample_delay.saturating_sub(1);
+            }
+            Util::SetSampleLength => {
+                self.adc_settings.sample_length = self.adc_settings.sample_length.saturating_sub(1);
+            }
+        };
+
+        true
+    }
+
+    fn increment_util_setting(&mut self) -> bool {
+        match self.cur_util {
+            Util::ReadTemp | Util::ReadVext => {
+                self.show_raw = !self.show_raw;
+                return false;
             }
             Util::SetResolution => {
                 self.adc_settings.resolution = match self.adc_settings.resolution {
@@ -345,9 +441,60 @@ impl Utils {
                     Resolution::_10bit => Resolution::_10bit, // No wrap around
                 };
             }
-            Util::ReadTemp | Util::ReadVext => {
-                self.show_raw = !self.show_raw;
-                return false;
+            Util::SetSampleNumber => {
+                self.adc_settings.sample_number = match self.adc_settings.sample_number {
+                    SampleNumber::Acc1 => SampleNumber::Acc2,
+                    SampleNumber::Acc2 => SampleNumber::Acc4,
+                    SampleNumber::Acc4 => SampleNumber::Acc8,
+                    SampleNumber::Acc8 => SampleNumber::Acc16,
+                    SampleNumber::Acc16 => SampleNumber::Acc32,
+                    SampleNumber::Acc32 => SampleNumber::Acc64,
+                    SampleNumber::Acc64 => SampleNumber::Acc64, // No wrap around
+                };
+            }
+            Util::SetSampCap => {
+                self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
+            }
+            Util::SetRefVoltage => {
+                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
+                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef1_1V,
+                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef1_5V,
+                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef2_5V,
+                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef4_34V,
+                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::Vdd,
+                    ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
+                };
+            }
+            Util::SetPrescaler => {
+                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
+                    ClockDivider::Factor2 => ClockDivider::Factor4,
+                    ClockDivider::Factor4 => ClockDivider::Factor8,
+                    ClockDivider::Factor8 => ClockDivider::Factor16,
+                    ClockDivider::Factor16 => ClockDivider::Factor32,
+                    ClockDivider::Factor32 => ClockDivider::Factor64,
+                    ClockDivider::Factor64 => ClockDivider::Factor128,
+                    ClockDivider::Factor128 => ClockDivider::Factor256,
+                    ClockDivider::Factor256 => ClockDivider::Factor256, // No wrap around
+                };
+            }
+            Util::SetInitDelay => {
+                self.adc_settings.init_delay = match self.adc_settings.init_delay {
+                    DelayCycles::Delay0 => DelayCycles::Delay16,
+                    DelayCycles::Delay16 => DelayCycles::Delay32,
+                    DelayCycles::Delay32 => DelayCycles::Delay64,
+                    DelayCycles::Delay64 => DelayCycles::Delay128,
+                    DelayCycles::Delay128 => DelayCycles::Delay256,
+                    DelayCycles::Delay256 => DelayCycles::Delay256, // No wrap around
+                };
+            }
+            // Util::SetAsdv => {
+            //     self.adc_settings.asdv = !self.adc_settings.asdv;
+            // }
+            Util::SetSampleDelay => {
+                self.adc_settings.sample_delay = (self.adc_settings.sample_delay + 1).min(15);
+            }
+            Util::SetSampleLength => {
+                self.adc_settings.sample_length = (self.adc_settings.sample_length + 1).min(31);
             }
         };
 
@@ -363,6 +510,7 @@ impl Mode for Utils {
             match event {
                 Event::LeftHeld => {
                     // disable ADC when leaving utils mode
+                    self.cur_util = Util::ReadTemp; // reset to first util
                     self.adc0.ctrla.write(|w| w.enable().clear_bit());
                     context.to_menu();
                     return;
@@ -370,10 +518,17 @@ impl Mode for Utils {
                 Event::RightHeld => {
                     let next_util = match self.cur_util {
                         Util::ReadTemp => Util::ReadVext,
-                        Util::ReadVext => Util::SetVref,
-                        Util::SetVref => Util::SetPrescaler,
-                        Util::SetPrescaler => Util::SetResolution,
-                        Util::SetResolution => Util::ReadTemp,
+                        Util::ReadVext => Util::SetResolution,
+                        Util::SetResolution => Util::SetSampleNumber,
+                        Util::SetSampleNumber => Util::SetSampCap,
+                        Util::SetSampCap => Util::SetRefVoltage,
+                        Util::SetRefVoltage => Util::SetPrescaler,
+                        Util::SetPrescaler => Util::SetInitDelay,
+                        //Util::SetInitDelay => Util::SetAsdv,
+                        Util::SetInitDelay => Util::SetSampleDelay,
+                        //Util::SetAsdv => Util::SetSampleDelay,
+                        Util::SetSampleDelay => Util::SetSampleLength,
+                        Util::SetSampleLength => Util::ReadTemp,
                     };
                     self.cur_util = next_util;
                     self.util_init = false;
