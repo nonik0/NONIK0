@@ -1,12 +1,17 @@
-use core::num;
-
 use super::Mode;
 use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
 
+// TODO: setting to submenu
+// tap left to change raw/converted
+// tap right to change reading
+// hold left to go back to main menu
+// hold right to go into settings
+// once in settings hold right to go to next setting, hold left to go back to readings
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Util {
     ReadTemp,
     ReadVext,
+    ReadVint,
     SetResolution,
     SetSampleNumber,
     SetSampCap,
@@ -19,22 +24,25 @@ enum Util {
 }
 
 // helper function to format an unsigned integer with a prefix and suffix value
-fn format_uint(buf: &mut [u8], prefix: &[u8], value: u16, decimal_digits: u16, suffix: Option<u8>) {
+fn format_uint(buf: &mut [u8], prefix: &[u8], value: u16, decimal_digits: u16, suffix: Option<&[u8]>) {
     let num_chars = buf.len();
     let prefix_len = prefix.len();
 
-    // copy prefix and suffix to buf (i.e. "Ve:____V")
+    // copy prefix to buf (i.e. "Ve:____")
     buf[..prefix_len].copy_from_slice(prefix);
+
+    // copy suffix to buf if provided
     if let Some(suffix) = suffix {
-        buf[num_chars - 1] = suffix;
+        let suffix_len = suffix.len();
+        buf[num_chars - suffix_len..].copy_from_slice(suffix);
     }
 
     // now copy the value by digit into buf from the right
     let mut need_decimal = decimal_digits > 0;
     let mut digits_in_buf = 0;
     let mut value = value;
-    let value_len = if suffix.is_some() {
-        num_chars - prefix_len - 1
+    let value_len = if let Some(suffix) = suffix {
+        num_chars - prefix_len - suffix.len()
     } else {
         num_chars - prefix_len
     };
@@ -73,6 +81,17 @@ pub struct Utils {
 
 impl Utils {
     const DECIMAL_PRECISION: u16 = 2; // X.YY
+    const VOLTAGE_ADC_SETTINGS: AdcSettings = AdcSettings {
+        resolution: Resolution::_10bit,
+        sample_number: SampleNumber::Acc16,
+        samp_cap: true,
+        ref_voltage: ReferenceVoltage::VRef2_5V,
+        clock_divider: ClockDivider::Factor256,
+        init_delay: DelayCycles::Delay0,
+        asdv: false,
+        sample_delay: 0,
+        sample_length: 0,
+    };
     const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
         resolution: Resolution::_10bit,
         sample_number: SampleNumber::Acc1,
@@ -82,7 +101,7 @@ impl Utils {
         init_delay: DelayCycles::Delay32,
         asdv: false,
         sample_delay: 0,
-        sample_length: 2,
+        sample_length: 4,
     };
 
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
@@ -90,7 +109,7 @@ impl Utils {
             cur_util: Util::ReadTemp,
             last_update: 0,
 
-            adc_settings: AdcSettings::default(),
+            adc_settings: Self::VOLTAGE_ADC_SETTINGS,
             adc0,
             sigrow,
             vref,
@@ -105,6 +124,7 @@ impl Utils {
         match self.cur_util {
             Util::ReadTemp => b"Tf:....\x98",
             Util::ReadVext => b"Ve:....V",
+            Util::ReadVint => b"Vi:....V",
             Util::SetResolution => match self.adc_settings.resolution {
                 Resolution::_10bit => b"Res: 10b",
                 Resolution::_8bit => b"Res:  8b",
@@ -182,8 +202,6 @@ impl Utils {
     }
 
     fn format_raw(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
-        const PREFIX_LEN: usize = 3;
-
         let (prefix, value, decimals, suffix) = match self.cur_util {
             Util::ReadTemp => {
                 if self.show_raw {
@@ -192,8 +210,8 @@ impl Utils {
                     (
                         b"Tf:",
                         self.temp_from_raw(raw),
-                        Self::DECIMAL_PRECISION,
-                        Some(b'\x98'),
+                        0,
+                        Some(b"\x98C".as_slice()),
                     )
                 }
             }
@@ -205,7 +223,19 @@ impl Utils {
                         b"Ve:",
                         self.voltage_from_raw(raw),
                         Self::DECIMAL_PRECISION,
-                        Some(b'V'),
+                        Some(b"V".as_slice()),
+                    )
+                }
+            }
+            Util::ReadVint => {
+                if self.show_raw {
+                    (b"Vi:", raw, 0, None)
+                } else {
+                    (
+                        b"Vi:",
+                        self.voltage_from_raw(raw),
+                        Self::DECIMAL_PRECISION,
+                        Some(b"V".as_slice()),
                     )
                 }
             }
@@ -233,6 +263,11 @@ impl Utils {
                         self.adc_settings,
                         avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::AIN10,
                     ),
+                    Util::ReadVint => (
+                        self.adc_settings,
+                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::INTREF,
+                    ),                    
+                    // TODO Read Vref
                     _ => return None,
                 };
                 self.apply_adc_settings(adc_settings);
@@ -284,16 +319,16 @@ impl Utils {
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
-        let sigrow_offset = self.sigrow.tempsense1.read().bits() as i16; // Read signed value from signature row
-        let sigrow_gain = self.sigrow.tempsense0.read().bits() as u16; // Read unsigned value from signature row
+        let sigrow_offset = self.sigrow.tempsense1.read().bits() as i8;
+        let sigrow_gain = self.sigrow.tempsense0.read().bits() as u8;
 
-        let mut raw_temp = (raw as i32) - (sigrow_offset as i32); // Perform subtraction with proper casting
-        raw_temp *= sigrow_gain as i32; // Multiply with gain
-        raw_temp += 0x80; // Add 1/2 to get correct rounding
-        raw_temp >>= 8; // Divide result to get Kelvin
-                        //let temperature_in_k = raw_temp as u16; // Cast back to u16
-        let temp_f = ((raw_temp as i32 - 273) * 9 / 5 + 32) as u16;
-        temp_f
+        let mut temp: u32 = ((raw as i32) - (sigrow_offset as i32)) as u32;
+        temp = (temp as i32 * sigrow_gain as i32) as u32;
+        temp += 0x80;
+        temp >>= 8;
+        let temp_k = temp as u16;
+        let temp_c = temp_k.saturating_sub(273); // TODO <0
+        temp_c
     }
 
     fn apply_adc_settings(&mut self, settings: AdcSettings) {
@@ -359,7 +394,7 @@ impl Utils {
 
     fn decrement_util_setting(&mut self) -> bool {
         match self.cur_util {
-            Util::ReadTemp | Util::ReadVext => {
+            Util::ReadTemp | Util::ReadVext | Util::ReadVint => {
                 self.show_raw = !self.show_raw;
                 return false;
             }
@@ -431,7 +466,7 @@ impl Utils {
 
     fn increment_util_setting(&mut self) -> bool {
         match self.cur_util {
-            Util::ReadTemp | Util::ReadVext => {
+            Util::ReadTemp | Util::ReadVext | Util::ReadVint => {
                 self.show_raw = !self.show_raw;
                 return false;
             }
@@ -518,7 +553,8 @@ impl Mode for Utils {
                 Event::RightHeld => {
                     let next_util = match self.cur_util {
                         Util::ReadTemp => Util::ReadVext,
-                        Util::ReadVext => Util::SetResolution,
+                        Util::ReadVext => Util::ReadVint,
+                        Util::ReadVint => Util::SetResolution,
                         Util::SetResolution => Util::SetSampleNumber,
                         Util::SetSampleNumber => Util::SetSampCap,
                         Util::SetSampCap => Util::SetRefVoltage,
@@ -587,7 +623,7 @@ impl Default for AdcSettings {
             resolution: Resolution::default(),
             sample_number: SampleNumber::Acc1,
             samp_cap: true, // Vref default 1.1V > 1.0V
-            ref_voltage: ReferenceVoltage::VRef2_5V,
+            ref_voltage: ReferenceVoltage::default(),
             clock_divider: ClockDivider::default(),
             init_delay: DelayCycles::Delay0,
             asdv: false,
