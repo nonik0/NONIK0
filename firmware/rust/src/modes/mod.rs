@@ -32,7 +32,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: 0,
+            mode_index: 1,
             settings,
         }
     }
