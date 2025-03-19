@@ -209,7 +209,7 @@ impl Utils {
         format_uint(buf, prefix, value, decimals, suffix);
     }
 
-    fn read_raw(&mut self) -> Option<u16> {
+    pub fn read_raw(&mut self) -> Option<u16> {
         match (
             self.util_init,
             self.adc0.command.read().stconv().bit_is_set(),

@@ -1,7 +1,6 @@
-use random_trait::Random as _;
-
 use super::Mode;
-use crate::{Context, Display, Event};
+use crate::{Context, Display, Event, Rand, NUM_CHARS};
+use random_trait::Random as _;
 
 pub struct Random {
     last_update: u16,
@@ -31,7 +30,17 @@ impl Mode for Random {
         }
 
         if update {
-            display.print_u32(crate::Rand::default().get_u32()).unwrap();
+            //display.print_u32(crate::Rand::default().get_u32()).unwrap();
+            //const MAX_VALUE: u32 = (10u32).pow(NUM_CHARS as u32) - 1;
+            //let rand_value = Rand::default().get_u32() % MAX_VALUE;
+            let mut rand_value = Rand::default().get_u32();
+            let mut buf = [b' '; NUM_CHARS];
+            for index in (0..NUM_CHARS).rev() {
+                buf[index] = b'0' + (rand_value % 10) as u8;
+                rand_value /= 10;
+            }
+
+            display.print_ascii_bytes(&buf).unwrap()
         }
     }
 }
