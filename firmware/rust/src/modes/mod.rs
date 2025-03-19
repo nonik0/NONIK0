@@ -99,5 +99,7 @@ pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context:
     let utils = make_static!(Utils::new_with_adc(adc, sigrow, vref));
     let vibes = make_static!(Vibes::new());
 
+    utils.seed_rand();
+
     [menu, nametag, game, random, settings, utils, vibes]
 }

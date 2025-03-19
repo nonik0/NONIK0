@@ -65,8 +65,6 @@ fn main() -> ! {
     let dp = avrxmega_hal::Peripherals::take().unwrap();
     let pins = avrxmega_hal::pins!(dp);
 
-    Rand::seed(1);
-
     let mut buttons =
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();

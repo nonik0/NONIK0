@@ -1,6 +1,7 @@
 use super::Mode;
 use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
 
+#[derive(Clone, Copy)]
 enum AdcReading {
     Temp,
     Vext,
@@ -79,6 +80,29 @@ impl Utils {
             show_tempf: false,
             display_buf: [0; NUM_CHARS],
         }
+    }
+
+    pub fn seed_rand(&mut self) {
+        let mut sample_count = 0;
+        let mut seed_value: u32 = 0;
+        let adc_settings = Self::ADC_SETTINGS; // TODO: faster
+        // get 4 bits of randomness from the 4 LSBs of 4 raw temp readings
+        while sample_count < 4 {
+            if let Some(reading) = self.read_raw(AdcReading::Temp, adc_settings) {
+                seed_value = (seed_value << 4) | (reading as u32 & 0b1111);
+                sample_count += 1;
+            }
+        }
+        // same thing for Vexternal reading
+        sample_count = 0;
+        while sample_count < 4 {
+            if let Some(reading) = self.read_raw(AdcReading::Vext, adc_settings) {
+                seed_value = (seed_value << 4) | (reading as u32 & 0b1111);
+                sample_count += 1;
+            }
+        }
+
+        crate::Rand::seed(seed_value);
     }
 
     fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
@@ -209,7 +233,7 @@ impl Utils {
         format_uint(buf, prefix, value, decimals, suffix);
     }
 
-    pub fn read_raw(&mut self) -> Option<u16> {
+    fn read_raw(&mut self, reading: AdcReading, adc_settings: AdcSettings) -> Option<u16> {
         match (
             self.util_init,
             self.adc0.command.read().stconv().bit_is_set(),
@@ -218,9 +242,9 @@ impl Utils {
             (false, true) => None,
             // Set up for measurement and start
             (false, false) => {
-                let (adc_settings, channel) = match self.cur_reading {
+                let (adc_settings, channel) = match reading {
                     AdcReading::Temp => {
-                        let mut temp_settings = self.adc_settings.clone();
+                        let mut temp_settings = adc_settings.clone();
                         temp_settings.ref_voltage = ReferenceVoltage::VRef1_1V;
                         (
                             temp_settings,
@@ -593,7 +617,7 @@ impl Mode for Utils {
         // check for new ADC reading
         let mut reading = 0;
         if !update && !self.settings_active {
-            if let Some(raw) = self.read_raw() {
+            if let Some(raw) = self.read_raw(self.cur_reading, self.adc_settings) {
                 update = true;
                 reading = raw;
             }
