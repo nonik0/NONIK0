@@ -6,6 +6,7 @@ mod nametag;
 mod random;
 mod sensors;
 mod settings;
+mod traffic;
 mod tunnel;
 mod vibes;
 
@@ -14,10 +15,11 @@ pub use nametag::*;
 pub use random::*;
 pub use sensors::*;
 pub use settings::*;
+pub use traffic::*;
 pub use tunnel::*;
 pub use vibes::*;
 
-pub const NUM_MODES: u8 = 7;
+pub const NUM_MODES: u8 = 8;
 
 static mut MODES_TAKEN: bool = false;
 
@@ -78,8 +80,9 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
         b"  Random", // 2
         b" Sensors", // 3
         b"Settings", // 4
-        b"  Tunnel", // 5
-        b"   Vibes", // 6
+        b" Traffic", // 5
+        b"  Tunnel", // 6
+        b"   Vibes", // 7
     ][index as usize]
 }
 
@@ -96,10 +99,11 @@ pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context:
     let random = make_static!(Random::new());
     let sensors = make_static!(Sensors::new_with_adc(adc, sigrow, vref));
     let settings = make_static!(Settings::new_with_settings(context.settings.brightness(), context.settings.current()));
+    let traffic = make_static!(Traffic::new());
     let tunnel = make_static!(Tunnel::new());
     let vibes = make_static!(Vibes::new());
 
     sensors.seed_rand();
 
-    [menu, nametag, random, sensors, settings, tunnel, vibes]
+    [menu, nametag, random, sensors, settings, traffic, tunnel, vibes]
 }
