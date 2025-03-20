@@ -11,6 +11,11 @@ The main hardware components are:
 - [ATtiny1604](https://www.microchip.com/en-us/product/attiny1604) 8-bit MCU
 - 2x buttons
 
+Revision #1:
+- Swapped test pads and UPDI pads. The UPDI pads were opposite of the buzzer, which made getting the probe clip to remain clipped over ther pads more difficult than it needed to be.
+- Added solder jumper to HCMS-291x SEL pin. Can optionally cut jumper  to Vcc and solder other side to ground to use external oscillator for display.
+- Optimized some routing for power and ground.
+
 ### Firmware
 
 The firmware is written in Rust and can be found in the [firmware/rust](firmware/rust) directory. As part of the work, I wrote a new [HCMS-29xx driver](https://github.com/nonik0/TODO) (TODO: split out from firmware) and forked avr-hal to add a Feather32u4 support, which I used for bootstrapping the HCMS-29xx driver work. There is also an older PlatformIO project targetting the Adafruit Feather in the [firmware/cpp](firmware/cpp) directory. TODO: pictures of prototype device
