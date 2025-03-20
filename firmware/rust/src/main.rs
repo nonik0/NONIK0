@@ -83,8 +83,12 @@ fn main() -> ! {
     .unwrap();
     display.begin().unwrap();
     display.display_unblank().unwrap();
-    display.set_brightness(context.settings.brightness()).unwrap();
-    display.set_peak_current(context.settings.current()).unwrap();
+    display
+        .set_brightness(context.settings.brightness())
+        .unwrap();
+    display
+        .set_peak_current(context.settings.current())
+        .unwrap();
 
     loop {
         let event = buttons.update();
@@ -96,9 +100,16 @@ fn main() -> ! {
                     context.to_menu();
                 }
             }
-            // play short tone on presses
+            // start tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
-                buzzer.tone(4000, 2000);
+                buzzer.tone(4000, 0);
+            }
+            // stop tone on button release
+            Some(Event::LeftReleased)
+            | Some(Event::RightReleased)
+            | Some(Event::LeftHeldReleased)
+            | Some(Event::RightHeldReleased) => {
+                buzzer.no_tone();
             }
             _ => {}
         }

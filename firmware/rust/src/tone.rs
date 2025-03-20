@@ -48,8 +48,8 @@ impl ToneState {
         self.output_pin.set_low();
         self.toggles_left = None;
 
-        self.timer.ctrla.reset();
-        self.timer.intctrl.reset();
+        self.timer.ctrla.modify(|_, w| w.enable().clear_bit());
+        self.timer.intctrl.write(|w| w.capt().clear_bit());
         self.timer.intflags.write(|w| w.capt().set_bit());
     }
 
@@ -160,7 +160,7 @@ impl Tone {
 
 #[avr_device::interrupt(attiny1604)]
 #[allow(non_snake_case)]
-fn TCA0_CMP0_LCMP0() {
+fn TCB0_INT() {
     avr_device::interrupt::free(|cs| {
         let mut state_opt = TONE_STATE.borrow(cs).borrow_mut();
         let state = state_opt.as_mut().unwrap(); // unwrap is safe here bc interrupt won't be enabled if state is None
