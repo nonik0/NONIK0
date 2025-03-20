@@ -6,7 +6,7 @@ version = 3
 name = "NONIK0"
 version = "0.1.0"
 dependencies = [
- "avr-device 0.7.0",
+ "avr-device",
  "avrxmega-hal",
  "embedded-hal 1.0.0",
  "hcms-29xx",
@@ -30,16 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "avr-device"
-version = "0.7.0"
-source = "git+https://github.com/nonik0/avr-device?branch=main#0404561ae9c5be290784b9659f2cb16620cb70d2"
-dependencies = [
- "bare-metal",
- "cfg-if",
- "vcell",
-]
-
-[[package]]
 name = "avr-device-macros"
 version = "0.7.0"
 dependencies = [
@@ -52,7 +42,7 @@ dependencies = [
 name = "avr-hal-generic"
 version = "0.1.0"
 dependencies = [
- "avr-device 0.7.0",
+ "avr-device",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
  "embedded-hal-bus",
@@ -67,7 +57,7 @@ dependencies = [
 name = "avrxmega-hal"
 version = "0.1.0"
 dependencies = [
- "avr-device 0.7.0 (git+https://github.com/nonik0/avr-device?branch=main)",
+ "avr-device",
  "avr-hal-generic",
 ]
 
