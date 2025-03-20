@@ -25,7 +25,10 @@ The firmware is written in Rust and can be found in the [firmware/rust](firmware
 </p>
 
 ## Work Left
-- order boards
-- assemble
-- try out some games and stuff
+[ ] implement tone generation for buzzer
+[ ] optimize binary size (i.e. match statements take more instructions/code space than enums with binary repr?)
+[ ] factor ADC functionality into HAL or at least separate class, then instantiate, seed rand, and pass to take()
+[ ] add back limited feather support now code is better organized (featuregating modes, etc.)
+[ ] optimize power usage by going to sleep when not in use (i.e. in nametag mode)
+[ ] implement interrupt-based button handling
 
