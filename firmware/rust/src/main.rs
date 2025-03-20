@@ -3,14 +3,6 @@
 #![feature(asm_experimental_arch)]
 #![feature(type_alias_impl_trait)]
 
-// TODO: add back feather support now code is better organized (featuregating modes, etc.)
-// TODO: optimize power usage by going to sleep when not in use (i.e. nametag mode)
-// TODO: implement interrupt-based button handling
-// TODO: implement tone generation for buzzer
-// TODO: implement ADC for rand seeding
-// TODO: implement EEPROM for persisting state
-// TODO: implement Random with OnceCell for portability, can use avr_hal sync types
-
 mod input;
 mod modes;
 //mod panic;

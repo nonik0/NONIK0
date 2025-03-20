@@ -546,6 +546,7 @@ impl Mode for Sensors {
                     // exit setting if active, or exit mode if not
                     if self.settings_active {
                         self.settings_active = false;
+                        self.util_init = false; // reapply adc settings
                         update = true;
                     } else {
                         // disable ADC when leaving utils mode
