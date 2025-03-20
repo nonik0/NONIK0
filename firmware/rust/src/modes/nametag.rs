@@ -32,30 +32,24 @@ impl Nametag {
     }
 
     fn next_char(&self, c: u8) -> u8 {
-        if c == b' ' {
-            b'A'
-        } else if c == b'Z' {
-            b'a'
-        } else if c == b'z' {
-            b'0'
-        } else if c == b'9' {
-            b' '
-        } else {
-            c + 1
+        match c {
+            b' ' => b'A',
+            b'Z' => b'a',
+            b'z' => b'0',
+            b'9' => b' ',
+            c if c.is_ascii_alphanumeric() => c + 1,
+            _ => b' ',
         }
     }
 
     fn prev_char(&self, c: u8) -> u8 {
-        if c == b' ' {
-            b'9'
-        } else if c == b'0' {
-            b'z'
-        } else if c == b'a' {
-            b'Z'
-        } else if c == b'A' {
-            b' '
-        } else {
-            c - 1
+        match c {
+            b' ' => b'9',
+            b'0' => b'z',
+            b'a' => b'Z',
+            b'A' => b' ',
+            c if c.is_ascii_alphanumeric() => c - 1,
+            _ => b' ',
         }
     }
 
@@ -123,13 +117,11 @@ impl Mode for Nametag {
                     }
                     Event::LeftReleased => {
                         update = true;
-                        self.name[self.edit_index] =
-                            self.prev_char(self.name[self.edit_index]);
+                        self.name[self.edit_index] = self.prev_char(self.name[self.edit_index]);
                     }
                     Event::RightReleased => {
                         update = true;
-                        self.name[self.edit_index] =
-                            self.next_char(self.name[self.edit_index]);
+                        self.name[self.edit_index] = self.next_char(self.name[self.edit_index]);
                     }
                     _ => {}
                 }

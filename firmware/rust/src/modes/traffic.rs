@@ -44,6 +44,7 @@ pub struct Traffic {
     driver_lane: u8,
 
     goal_pos: u8,
+    goal_col: u8,
     crashed: bool,
 
     traffic_cols: Vec<u8, NUM_VIRT_COLS>,
@@ -57,6 +58,7 @@ pub struct Traffic {
 impl Traffic {
     const DRIVER_PERIOD_START: u8 = 20;
     const TRAFFIC_PERIOD_START: u8 = 3;
+    const GOAL_COL: u8 = 0b0101_0101;
     const GOAL_POS_START: u8 = ((NUM_VIRT_COLS >> 1) + hcms_29xx::CHAR_WIDTH) as u8;
     const TRUCK_MAX_COUNT_START: usize = 1;
     const MAX_TRUCKS: usize = 3;
@@ -78,6 +80,7 @@ impl Traffic {
             driver_lane: NUM_ROWS as u8 >> 1,
 
             goal_pos: Self::GOAL_POS_START,
+            goal_col: Self::GOAL_COL,
             crashed: false,
 
             // traffic will have random "blocks" (i.e. trucks) to driver around
@@ -111,10 +114,11 @@ impl Traffic {
     }
 
     fn clear_traffic(&mut self) {
+        self.crashed = false;
+        self.truck_count = 0;
         for i in 0..Self::MAX_TRUCKS {
             self.trucks[i].length = 0;
         }
-        self.truck_count = 0;
 
         self.traffic_cols.clear();
         for _ in 0..NUM_VIRT_COLS {
@@ -259,9 +263,8 @@ impl Mode for Traffic {
                         update = true;
 
                         // clear traffic and signal restart by setting truck max count to 0
-                        self.truck_max_count = 0;
                         self.clear_traffic();
-                        self.crashed = false;
+                        self.truck_max_count = 0;
                     }
                 }
                 Event::LeftReleased => {
@@ -284,6 +287,7 @@ impl Mode for Traffic {
             if let Some(new_traffic_col) = self.next_traffic_col() {
                 update = true;
 
+                self.goal_col = !self.goal_col;
                 self.traffic_cols.remove(0);
                 self.traffic_cols.push(new_traffic_col).unwrap();
             }
@@ -352,7 +356,7 @@ impl Mode for Traffic {
 
                         col |= self.driver_col();
                     } else if self.is_driving && col_pos == self.goal_pos as usize {
-                        col |= 0b0111_1111;
+                        col |= self.goal_col;
                     }
 
                     cols.push(col).unwrap();
