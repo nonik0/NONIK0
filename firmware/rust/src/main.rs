@@ -1,5 +1,6 @@
 #![no_std]
 #![no_main]
+#![feature(abi_avr_interrupt)]
 #![feature(asm_experimental_arch)]
 #![feature(type_alias_impl_trait)]
 
@@ -9,6 +10,7 @@ mod modes;
 use panic_halt as _;
 mod random;
 mod saved_settings;
+mod tone;
 
 use avrxmega_hal::eeprom::Eeprom;
 use avrxmega_hal::port::{mode::Output, *};
@@ -64,6 +66,8 @@ fn main() -> ! {
     let eeprom = Eeprom::new(dp.NVMCTRL);
     let settings = saved_settings::SavedSettings::new(eeprom);
 
+    let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
+
     let mut context = Context::new(settings);
     let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context);
 
@@ -85,11 +89,18 @@ fn main() -> ! {
     loop {
         let event = buttons.update();
 
-        // special case to get always get back to menu
-        if let Some(Event::BothHeld) = event {
-            if !context.is_menu() {
-                context.to_menu();
+        match event {
+            // special case to get always get back to menu
+            Some(Event::BothHeld) => {
+                if !context.is_menu() {
+                    context.to_menu();
+                }
             }
+            // play short tone on presses
+            Some(Event::LeftPressed) | Some(Event::RightPressed) => {
+                buzzer.tone(4000, 2000);
+            }
+            _ => {}
         }
 
         modes[context.mode()].update(&event, &mut context, &mut display);
