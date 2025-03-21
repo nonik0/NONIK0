@@ -52,7 +52,7 @@ const NUM_COLS: usize = hcms_29xx::CHAR_WIDTH * NUM_CHARS;
 const NUM_VIRT_COLS: usize = NUM_COLS + (NUM_CHARS - 1) * COLUMN_GAP;
 const COLUMN_GAP: usize = 2;
 
-const BASE_DELAY_MS: u32 = 10;
+const BASE_DELAY_MS: u32 = 5;
 
 #[avr_device::entry]
 fn main() -> ! {

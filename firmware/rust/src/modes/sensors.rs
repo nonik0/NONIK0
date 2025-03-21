@@ -146,7 +146,7 @@ impl Sensors {
                 if self.adc_settings.asdv {
                     buf.copy_from_slice(b"ASDV:yes")
                 } else {
-                    buf.copy_from_slice(b"ASDC: no")
+                    buf.copy_from_slice(b"ASDV: no")
                 }
             }
             AdcSetting::SampleDelay => {
