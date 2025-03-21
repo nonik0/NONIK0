@@ -16,7 +16,7 @@ enum AdcSetting {
     RefVoltage,
     Prescaler,
     InitDelay,
-    //SetAsdv,
+    SetAsdv,
     SampleDelay,
     SampleLength,
 }
@@ -51,17 +51,6 @@ impl Sensors {
         sample_delay: 10,
         sample_length: 10,
     };
-    // const TEMP_ADC_SETTINGS: AdcSettings = AdcSettings {
-    //     resolution: Resolution::_10bit,
-    //     sample_number: SampleNumber::Acc16,
-    //     samp_cap: true,
-    //     ref_voltage: ReferenceVoltage::VRef1_1V,
-    //     clock_divider: ClockDivider::Factor256,
-    //     init_delay: DelayCycles::Delay32,
-    //     asdv: false,
-    //     sample_delay: 0,
-    //     sample_length: 4,
-    // };
 
     pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
         Sensors {
@@ -86,7 +75,7 @@ impl Sensors {
         let mut sample_count = 0;
         let mut seed_value: u32 = 0;
         let adc_settings = Self::ADC_SETTINGS; // TODO: faster
-        // get 4 bits of randomness from the 4 LSBs of 4 raw temp readings
+                                               // get 4 bits of randomness from the 4 LSBs of 4 raw temp readings
         while sample_count < 4 {
             if let Some(reading) = self.read_raw(AdcReading::Temp, adc_settings) {
                 seed_value = (seed_value << 4) | (reading as u32 & 0b1111);
@@ -153,6 +142,13 @@ impl Sensors {
                 DelayCycles::Delay128 => buf.copy_from_slice(b"Idly:128"),
                 DelayCycles::Delay256 => buf.copy_from_slice(b"Idly:256"),
             },
+            AdcSetting::SetAsdv => {
+                if self.adc_settings.asdv {
+                    buf.copy_from_slice(b"ASDV:yes")
+                } else {
+                    buf.copy_from_slice(b"ASDC: no")
+                }
+            }
             AdcSetting::SampleDelay => {
                 format_uint(
                     buf,
@@ -274,12 +270,6 @@ impl Sensors {
             (true, true) => None,
             // Measurement complete, get result and start again
             (true, false) => {
-                self.adc0.command.write(|w| w.stconv().set_bit());
-
-                // let settings = match self.cur_reading {
-                //     AdcReading::Temp => Self::TEMP_ADC_SETTINGS,
-                //     _ => self.adc_settings,
-                // };
                 let acc_divisor = match self.adc_settings.sample_number {
                     SampleNumber::Acc1 => 1,
                     SampleNumber::Acc2 => 2,
@@ -292,6 +282,8 @@ impl Sensors {
 
                 let acc_raw = self.adc0.res.read().bits();
                 let raw = acc_raw / acc_divisor as u16;
+
+                self.adc0.command.write(|w| w.stconv().set_bit());
                 Some(raw)
             }
         }
@@ -347,7 +339,6 @@ impl Sensors {
             ReferenceVoltage::VRef1_5V => w.adc0refsel()._1v5(),
             _ => w,
         });
-        //self.vref.ctrlb.modify(|_, w| w.adc0refen().clear_bit());
 
         self.adc0.ctrla.write(|w| {
             match settings.resolution {
@@ -453,9 +444,9 @@ impl Sensors {
                     DelayCycles::Delay0 => DelayCycles::Delay0, // No wrap around
                 };
             }
-            // Util::SetAsdv => {
-            //     self.adc_settings.asdv = !self.adc_settings.asdv;
-            // }
+            AdcSetting::SetAsdv => {
+                self.adc_settings.asdv = !self.adc_settings.asdv;
+            }
             AdcSetting::SampleDelay => {
                 self.adc_settings.sample_delay = self.adc_settings.sample_delay.saturating_sub(1);
             }
@@ -521,9 +512,9 @@ impl Sensors {
                     DelayCycles::Delay256 => DelayCycles::Delay256, // No wrap around
                 };
             }
-            // Util::SetAsdv => {
-            //     self.adc_settings.asdv = !self.adc_settings.asdv;
-            // }
+            AdcSetting::SetAsdv => {
+                self.adc_settings.asdv = !self.adc_settings.asdv;
+            }
             AdcSetting::SampleDelay => {
                 self.adc_settings.sample_delay = (self.adc_settings.sample_delay + 1).min(15);
             }
@@ -565,9 +556,8 @@ impl Mode for Sensors {
                             AdcSetting::SampCap => AdcSetting::RefVoltage,
                             AdcSetting::RefVoltage => AdcSetting::Prescaler,
                             AdcSetting::Prescaler => AdcSetting::InitDelay,
-                            //AdcSetting::SetInitDelay => AdcSetting::SetAsdv,
-                            AdcSetting::InitDelay => AdcSetting::SampleDelay,
-                            //AdcSetting::SetAsdv => AdcSetting::SetSampleDelay,
+                            AdcSetting::InitDelay => AdcSetting::SetAsdv,
+                            AdcSetting::SetAsdv => AdcSetting::SampleDelay,
                             AdcSetting::SampleDelay => AdcSetting::SampleLength,
                             AdcSetting::SampleLength => AdcSetting::Resolution,
                         };

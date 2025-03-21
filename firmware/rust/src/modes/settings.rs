@@ -83,25 +83,13 @@ impl Mode for Settings {
         if update {
             match self.cur_setting {
                 Setting::Brightness => {
-                    let buffer = match self.brightness {
-                        00 => b"Brite: 0",
-                        01 => b"Brite: 1",
-                        02 => b"Brite: 2",
-                        03 => b"Brite: 3",
-                        04 => b"Brite: 4",
-                        05 => b"Brite: 5",
-                        06 => b"Brite: 6",
-                        07 => b"Brite: 7",
-                        08 => b"Brite: 8",
-                        09 => b"Brite: 9",
-                        10 => b"Brite:10",
-                        11 => b"Brite:11",
-                        12 => b"Brite:12",
-                        13 => b"Brite:13",
-                        14 => b"Brite:14",
-                        15 => b"Brite:15",
-                        _ => b"Brite:12",
-                    };
+                    const BRIGHTNESS_LEVELS: [&[u8]; 16] = [
+                        b"Brite: 0", b"Brite: 1", b"Brite: 2", b"Brite: 3",
+                        b"Brite: 4", b"Brite: 5", b"Brite: 6", b"Brite: 7",
+                        b"Brite: 8", b"Brite: 9", b"Brite:10", b"Brite:11",
+                        b"Brite:12", b"Brite:13", b"Brite:14", b"Brite:15",
+                    ];
+                    let buffer = BRIGHTNESS_LEVELS[self.brightness as usize];
                     display.print_ascii_bytes(buffer).unwrap();
                 }
                 Setting::Current => match self.current {
