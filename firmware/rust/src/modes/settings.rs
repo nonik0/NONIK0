@@ -5,6 +5,26 @@ const BRIGHTNESS_DEFAULT: u8 = 12;
 const BRIGHTNESS_MAX: u8 = 16;
 const CURRENT_MAX: u8 = 4;
 const CURRENT_DEFAULT: u8 = 1;
+const BRIGHTNESS_LEVELS: [&[u8]; BRIGHTNESS_MAX as usize] = [
+    b"Brite: 0",
+    b"Brite: 1",
+    b"Brite: 2",
+    b"Brite: 3",
+    b"Brite: 4",
+    b"Brite: 5",
+    b"Brite: 6",
+    b"Brite: 7",
+    b"Brite: 8",
+    b"Brite: 9",
+    b"Brite:10",
+    b"Brite:11",
+    b"Brite:12",
+    b"Brite:13",
+    b"Brite:14",
+    b"Brite:15",
+];
+const CURRENT_LEVELS: [&[u8]; CURRENT_MAX as usize] =
+    [b"Cur: 4mA", b"Cur: 6mA", b"Cur: 9mA", b"Cur:13mA"];
 
 enum Setting {
     Brightness,
@@ -50,7 +70,9 @@ impl Settings {
 
     pub fn apply(&self, display: &mut Display) {
         display.set_brightness(self.brightness).unwrap();
-        display.set_peak_current(Self::current_into(self.current)).unwrap();
+        display
+            .set_peak_current(Self::current_into(self.current))
+            .unwrap();
     }
 }
 
@@ -87,11 +109,11 @@ impl Mode for Settings {
                 },
                 Event::LeftReleased => match self.cur_setting {
                     Setting::Brightness => {
-                        self.brightness = (self.brightness + BRIGHTNESS_MAX-1) % BRIGHTNESS_MAX;
+                        self.brightness = (self.brightness + BRIGHTNESS_MAX - 1) % BRIGHTNESS_MAX;
                         display.set_brightness(self.brightness).unwrap();
                     }
                     Setting::Current => {
-                        self.current = (self.current + CURRENT_MAX-1) % CURRENT_MAX;
+                        self.current = (self.current + CURRENT_MAX - 1) % CURRENT_MAX;
                         display
                             .set_peak_current(Self::current_into(self.current))
                             .unwrap();
@@ -116,30 +138,10 @@ impl Mode for Settings {
         if update {
             match self.cur_setting {
                 Setting::Brightness => {
-                    const BRIGHTNESS_LEVELS: [&[u8]; BRIGHTNESS_MAX as usize] = [
-                        b"Brite: 0",
-                        b"Brite: 1",
-                        b"Brite: 2",
-                        b"Brite: 3",
-                        b"Brite: 4",
-                        b"Brite: 5",
-                        b"Brite: 6",
-                        b"Brite: 7",
-                        b"Brite: 8",
-                        b"Brite: 9",
-                        b"Brite:10",
-                        b"Brite:11",
-                        b"Brite:12",
-                        b"Brite:13",
-                        b"Brite:14",
-                        b"Brite:15",
-                    ];
                     let buffer = BRIGHTNESS_LEVELS[self.brightness as usize];
                     display.print_ascii_bytes(buffer).unwrap();
                 }
                 Setting::Current => {
-                    const CURRENT_LEVELS: [&[u8]; CURRENT_MAX as usize] =
-                        [b"Cur: 4mA", b"Cur: 6mA", b"Cur: 9mA", b"Cur:13mA"];
                     let buffer = CURRENT_LEVELS[self.current as usize];
                     display.print_ascii_bytes(buffer).unwrap();
                 }

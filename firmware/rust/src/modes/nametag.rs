@@ -22,6 +22,10 @@ impl Nametag {
         let mut name_buf = [0; NUM_CHARS];
         settings.read_setting(Setting::Name, &mut name_buf);
 
+        if name_buf.iter().any(|&byte| !byte.is_ascii_alphanumeric() && byte != b' ') {
+            name_buf.copy_from_slice(b" NONIK0 ")
+        }
+
         Nametag {
             name: name_buf,
             last_update: 0,
