@@ -1,12 +1,105 @@
 use super::Mode;
-use crate::{Adc0, Context, Display, Event,SavedSettings, Setting, Sigrow, Vref, NUM_CHARS};
+use crate::{Adc0, Context, Display, Event, SavedSettings, Setting, Sigrow, Vref, NUM_CHARS};
+
+// Arrays for indexed string lookup
+const RESOLUTION_STRINGS: [&[u8]; 2] = [b"Res: 10b", b"Res:  8b"];
+const SAMPLE_NUMBER_STRINGS: [&[u8]; 7] = [
+    b"Snum:  1",
+    b"Snum:  2",
+    b"Snum:  4",
+    b"Snum:  8",
+    b"Snum: 16",
+    b"Snum: 32",
+    b"Snum: 64",
+];
+const SAMP_CAP_STRINGS: [&[u8]; 2] = [b"Scap: no", b"Scap:yes"];
+const REF_VOLTAGE_STRINGS: [&[u8]; 6] = [
+    b"Vr:0.55V",
+    b"Vr: 1.1V",
+    b"Vr: 1.5V",
+    b"Vr: 2.5V",
+    b"Vr:4.34V",
+    b"Vr:  Vdd",
+];
+const CLOCK_DIVIDER_STRINGS: [&[u8]; 8] = [
+    b"Div:   2",
+    b"Div:   4",
+    b"Div:   8",
+    b"Div:  16",
+    b"Div:  32",
+    b"Div:  64",
+    b"Div: 128",
+    b"Div: 256",
+];
+const INIT_DELAY_STRINGS: [&[u8]; 6] = [
+    b"Idly:  0",
+    b"Idly: 16",
+    b"Idly: 32",
+    b"Idly: 64",
+    b"Idly:128",
+    b"Idly:256",
+];
+const ASDV_STRINGS: [&[u8]; 2] = [b"ASDV: no", b"ASDV:yes"];
+const REF_VOLTAGE_VARIANTS: [avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A; 5] = [
+    avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_0V55,
+    avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_1V1,
+    avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_2V5,
+    avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_4V34,
+    avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_1V5,
+];
+const RESOLUTION_VARIANTS: [avrxmega_hal::pac::adc0::ctrla::RESSEL_A; 2] = [
+    avrxmega_hal::pac::adc0::ctrla::RESSEL_A::_10BIT,
+    avrxmega_hal::pac::adc0::ctrla::RESSEL_A::_8BIT,
+];
+const SAMPLE_NUMBER_VARIANTS: [avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A; 7] = [
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC1,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC2,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC4,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC8,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC16,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC32,
+    avrxmega_hal::pac::adc0::ctrlb::SAMPNUM_A::ACC64,
+];
+const CLOCK_DIVIDER_VARIANTS: [avrxmega_hal::pac::adc0::ctrlc::PRESC_A; 8] = [
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV2,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV4,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV8,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV16,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV32,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV64,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV128,
+    avrxmega_hal::pac::adc0::ctrlc::PRESC_A::DIV256,
+];
+const INIT_DELAY_VARIANTS: [avrxmega_hal::pac::adc0::ctrld::INITDLY_A; 6] = [
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY0,
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY16,
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY32,
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY64,
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY128,
+    avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY256,
+];
+
+// Arrays for indexed lookup
+const SAMPLE_NUMBER_DIVISORS: [u16; 7] = [1, 2, 4, 8, 16, 32, 64];
+const VREF_E5_VALUES: [u32; 6] = [55000, 110000, 150000, 250000, 434000, 360000];
 
 #[derive(Clone, Copy)]
 enum AdcReading {
-    Temp,
-    Vext,
-    Vref,
-    Gnd,
+    Temp = 0,
+    Vext = 1,
+    Vref = 2,
+    Gnd = 3,
+}
+
+impl AdcReading {
+    fn next(&self) -> Self {
+        match self {
+            AdcReading::Temp => AdcReading::Vext,
+            AdcReading::Vext => AdcReading::Vref,
+            AdcReading::Vref => AdcReading::Gnd,
+            AdcReading::Gnd => AdcReading::Temp,
+        }
+    }
 }
 
 enum AdcSetting {
@@ -19,6 +112,22 @@ enum AdcSetting {
     SetAsdv,
     SampleDelay,
     SampleLength,
+}
+
+impl AdcSetting {
+    fn next(&self) -> Self {
+        match self {
+            AdcSetting::Resolution => AdcSetting::SampleNumber,
+            AdcSetting::SampleNumber => AdcSetting::SampCap,
+            AdcSetting::SampCap => AdcSetting::RefVoltage,
+            AdcSetting::RefVoltage => AdcSetting::Prescaler,
+            AdcSetting::Prescaler => AdcSetting::InitDelay,
+            AdcSetting::InitDelay => AdcSetting::SetAsdv,
+            AdcSetting::SetAsdv => AdcSetting::SampleDelay,
+            AdcSetting::SampleDelay => AdcSetting::SampleLength,
+            AdcSetting::SampleLength => AdcSetting::Resolution,
+        }
+    }
 }
 
 pub struct Sensors {
@@ -52,8 +161,13 @@ impl Sensors {
         sample_length: 10,
     };
 
-    pub fn new_with_settings(settings: &SavedSettings, adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
-        let saved_reading = match settings.read_setting_byte(Setting::SensorPage)  {
+    pub fn new_with_settings(
+        settings: &SavedSettings,
+        adc0: Adc0,
+        sigrow: Sigrow,
+        vref: Vref,
+    ) -> Self {
+        let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
             1 => AdcReading::Vext,
             2 => AdcReading::Vref,
             3 => AdcReading::Gnd,
@@ -102,215 +216,96 @@ impl Sensors {
     }
 
     fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
-        match self.cur_setting {
-            AdcSetting::Resolution => match self.adc_settings.resolution {
-                Resolution::_10bit => buf.copy_from_slice(b"Res: 10b"),
-                Resolution::_8bit => buf.copy_from_slice(b"Res:  8b"),
-            },
-            AdcSetting::SampleNumber => match self.adc_settings.sample_number {
-                SampleNumber::Acc1 => buf.copy_from_slice(b"Snum:  1"),
-                SampleNumber::Acc2 => buf.copy_from_slice(b"Snum:  2"),
-                SampleNumber::Acc4 => buf.copy_from_slice(b"Snum:  4"),
-                SampleNumber::Acc8 => buf.copy_from_slice(b"Snum:  8"),
-                SampleNumber::Acc16 => buf.copy_from_slice(b"Snum: 16"),
-                SampleNumber::Acc32 => buf.copy_from_slice(b"Snum: 32"),
-                SampleNumber::Acc64 => buf.copy_from_slice(b"Snum: 64"),
-            },
-            AdcSetting::SampCap => {
-                if self.adc_settings.samp_cap {
-                    buf.copy_from_slice(b"Scap:yes")
-                } else {
-                    buf.copy_from_slice(b"Scap: no")
-                }
-            }
-            AdcSetting::RefVoltage => match self.adc_settings.ref_voltage {
-                ReferenceVoltage::VRef0_55V => buf.copy_from_slice(b"Vr:0.55V"),
-                ReferenceVoltage::VRef1_1V => buf.copy_from_slice(b"Vr: 1.1V"),
-                ReferenceVoltage::VRef1_5V => buf.copy_from_slice(b"Vr: 1.5V"),
-                ReferenceVoltage::VRef2_5V => buf.copy_from_slice(b"Vr: 2.5V"),
-                ReferenceVoltage::VRef4_34V => buf.copy_from_slice(b"Vr:4.34V"),
-                ReferenceVoltage::Vdd => buf.copy_from_slice(b"Vr:  Vdd"),
-            },
-            AdcSetting::Prescaler => match self.adc_settings.clock_divider {
-                ClockDivider::Factor2 => buf.copy_from_slice(b"Div:   2"),
-                ClockDivider::Factor4 => buf.copy_from_slice(b"Div:   4"),
-                ClockDivider::Factor8 => buf.copy_from_slice(b"Div:   8"),
-                ClockDivider::Factor16 => buf.copy_from_slice(b"Div:  16"),
-                ClockDivider::Factor32 => buf.copy_from_slice(b"Div:  32"),
-                ClockDivider::Factor64 => buf.copy_from_slice(b"Div:  64"),
-                ClockDivider::Factor128 => buf.copy_from_slice(b"Div: 128"),
-                ClockDivider::Factor256 => buf.copy_from_slice(b"Div: 256"),
-            },
-            AdcSetting::InitDelay => match self.adc_settings.init_delay {
-                DelayCycles::Delay0 => buf.copy_from_slice(b"Idly:  0"),
-                DelayCycles::Delay16 => buf.copy_from_slice(b"Idly: 16"),
-                DelayCycles::Delay32 => buf.copy_from_slice(b"Idly: 32"),
-                DelayCycles::Delay64 => buf.copy_from_slice(b"Idly: 64"),
-                DelayCycles::Delay128 => buf.copy_from_slice(b"Idly:128"),
-                DelayCycles::Delay256 => buf.copy_from_slice(b"Idly:256"),
-            },
-            AdcSetting::SetAsdv => {
-                if self.adc_settings.asdv {
-                    buf.copy_from_slice(b"ASDV:yes")
-                } else {
-                    buf.copy_from_slice(b"ASDV: no")
-                }
-            }
+        buf.copy_from_slice(match self.cur_setting {
+            AdcSetting::Resolution => RESOLUTION_STRINGS[self.adc_settings.resolution as usize],
+            AdcSetting::SampleNumber => SAMPLE_NUMBER_STRINGS[self.adc_settings.sample_number as usize],
+            AdcSetting::SampCap => SAMP_CAP_STRINGS[self.adc_settings.samp_cap as usize],
+            AdcSetting::RefVoltage => REF_VOLTAGE_STRINGS[self.adc_settings.ref_voltage as usize],
+            AdcSetting::Prescaler => CLOCK_DIVIDER_STRINGS[self.adc_settings.clock_divider as usize],
+            AdcSetting::InitDelay => INIT_DELAY_STRINGS[self.adc_settings.init_delay as usize],
+            AdcSetting::SetAsdv => ASDV_STRINGS[self.adc_settings.asdv as usize],
             AdcSetting::SampleDelay => {
-                format_uint(
-                    buf,
-                    b"Sdly:",
-                    self.adc_settings.sample_delay as u16,
-                    0,
-                    None,
-                );
+                format_uint(buf, b"Sdly:", self.adc_settings.sample_delay as u16, 0, None);
+                return;
             }
             AdcSetting::SampleLength => {
-                format_uint(
-                    buf,
-                    b"Slen:",
-                    self.adc_settings.sample_length as u16,
-                    0,
-                    None,
-                );
+                format_uint(buf, b"Slen:", self.adc_settings.sample_length as u16, 0, None);
+                return;
             }
-        }
+        });
     }
 
     fn format_reading(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
-        let (prefix, value, decimals, suffix) = match self.cur_reading {
-            AdcReading::Temp => {
-                if self.show_raw {
-                    (b"Tf:", raw, 0, None)
-                } else {
-                    (
-                        b"Tf:",
-                        self.temp_from_raw(raw),
-                        0,
-                        if self.show_tempf {
-                            Some(b"\x98F".as_slice())
-                        } else {
-                            Some(b"\x98C".as_slice())
-                        },
-                    )
-                }
-            }
-            AdcReading::Vext => {
-                if self.show_raw {
-                    (b"Ve:", raw, 0, None)
-                } else {
-                    (
-                        b"Ve:",
-                        self.voltage_from_raw(raw),
-                        Self::DECIMAL_PRECISION,
-                        Some(b"V".as_slice()),
-                    )
-                }
-            }
-            AdcReading::Vref => {
-                if self.show_raw {
-                    (b"Vr:", raw, 0, None)
-                } else {
-                    (
-                        b"Vr:",
-                        self.voltage_from_raw(raw),
-                        Self::DECIMAL_PRECISION,
-                        Some(b"V".as_slice()),
-                    )
-                }
-            }
-            AdcReading::Gnd => {
-                if self.show_raw {
-                    (b"Vg:", raw, 0, None)
-                } else {
-                    (
-                        b"Vg:",
-                        self.voltage_from_raw(raw),
-                        Self::DECIMAL_PRECISION,
-                        Some(b"V".as_slice()),
-                    )
-                }
-            }
+        let (prefix, value, decimals, suffix) = match (self.cur_reading, self.show_raw) {
+            (AdcReading::Temp, true) => (b"Tf:", raw, 0, None),
+            (AdcReading::Temp, false) => (
+                b"Tf:",
+                self.temp_from_raw(raw),
+                0,
+                Some(if self.show_tempf { b"\x98F" } else { b"\x98C" }.as_slice()),
+            ),
+            (AdcReading::Vext, true) => (b"Ve:", raw, 0, None),
+            (AdcReading::Vext, false) | (AdcReading::Vref, false) | (AdcReading::Gnd, false) => (
+                match self.cur_reading {
+                    AdcReading::Vext => b"Ve:",
+                    AdcReading::Vref => b"Vr:",
+                    AdcReading::Gnd => b"Vg:",
+                    _ => unreachable!(),
+                },
+                self.voltage_from_raw(raw),
+                Self::DECIMAL_PRECISION,
+                Some(b"V".as_slice()),
+            ),
+            (AdcReading::Vref, true) => (b"Vr:", raw, 0, None),
+            (AdcReading::Gnd, true) => (b"Vg:", raw, 0, None),
         };
 
         format_uint(buf, prefix, value, decimals, suffix);
     }
 
     fn read_raw(&mut self, reading: AdcReading, adc_settings: AdcSettings) -> Option<u16> {
-        match (
-            self.util_init,
-            self.adc0.command.read().stconv().bit_is_set(),
-        ) {
-            // Other measurement ongoing
-            (false, true) => None,
-            // Set up for measurement and start
-            (false, false) => {
-                let (adc_settings, channel) = match reading {
-                    AdcReading::Temp => {
-                        let mut temp_settings = adc_settings.clone();
-                        temp_settings.ref_voltage = ReferenceVoltage::VRef1_1V;
-                        (
-                            temp_settings,
-                            avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE,
-                        )
-                    }
-                    AdcReading::Vext => (
-                        self.adc_settings,
-                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::AIN10,
-                    ),
-                    AdcReading::Vref => (
-                        self.adc_settings,
-                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::INTREF,
-                    ),
-                    AdcReading::Gnd => (
-                        self.adc_settings,
-                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::GND,
-                    ),
-                };
-                self.apply_adc_settings(adc_settings);
-                self.adc0.muxpos.write(|w| w.muxpos().variant(channel));
-                self.adc0.command.write(|w| w.stconv().set_bit());
-                self.util_init = true;
-                None
-            }
-            // Measurement ongoing
-            (true, true) => None,
-            // Measurement complete, get result and start again
-            (true, false) => {
-                let acc_divisor = match self.adc_settings.sample_number {
-                    SampleNumber::Acc1 => 1,
-                    SampleNumber::Acc2 => 2,
-                    SampleNumber::Acc4 => 4,
-                    SampleNumber::Acc8 => 8,
-                    SampleNumber::Acc16 => 16,
-                    SampleNumber::Acc32 => 32,
-                    SampleNumber::Acc64 => 64,
-                };
-
-                let acc_raw = self.adc0.res.read().bits();
-                let raw = acc_raw / acc_divisor as u16;
-
-                self.adc0.command.write(|w| w.stconv().set_bit());
-                Some(raw)
-            }
+        if self.adc0.command.read().stconv().bit_is_set() {
+            return None; // Measurement ongoing
         }
+
+        if !self.util_init {
+            let (adc_settings, channel) = match reading {
+                AdcReading::Temp => {
+                    let mut temp_settings = adc_settings;
+                    temp_settings.ref_voltage = ReferenceVoltage::VRef1_1V;
+                    (temp_settings, avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE)
+                }
+                AdcReading::Vext => (
+                    self.adc_settings,
+                    avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::AIN10,
+                ),
+                AdcReading::Vref => (
+                    self.adc_settings,
+                    avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::INTREF,
+                ),
+                AdcReading::Gnd => (
+                    self.adc_settings,
+                    avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::GND,
+                ),
+            };
+            self.apply_adc_settings(adc_settings);
+            self.adc0.muxpos.write(|w| w.muxpos().variant(channel));
+            self.adc0.command.write(|w| w.stconv().set_bit());
+            self.util_init = true;
+            return None;
+        }
+
+        // Measurement complete, get result
+        let acc_divisor = SAMPLE_NUMBER_DIVISORS[self.adc_settings.sample_number as usize];
+        let raw = self.adc0.res.read().bits() / acc_divisor;
+        self.adc0.command.write(|w| w.stconv().set_bit());
+        Some(raw)
     }
 
     fn voltage_from_raw(&self, raw: u16) -> u16 {
-        // RAW_MAX = 2^RESOLUTION-1
-        // RAW_RES = RAW_MAX * (Vin/Vref)
-        // Vin = (RAW_RES/RAW_MAX) * Vref
-        // Vin = ((RAW_RES * Vref) / RAW_MAX) (integer arithmetic order
         let raw = raw as u32;
-        let vrefe5: u32 = match self.adc_settings.ref_voltage {
-            ReferenceVoltage::VRef0_55V => 55000,  // 0.55 x 10^5
-            ReferenceVoltage::VRef1_1V => 110000,  // 1.1 x 10^5
-            ReferenceVoltage::VRef1_5V => 150000,  // 1.5 x 10^5
-            ReferenceVoltage::VRef2_5V => 250000,  // 2.5 x 10^5
-            ReferenceVoltage::VRef4_34V => 434000, // 4.34 x 10^5
-            ReferenceVoltage::Vdd => 360000,       // ~3.6V nominal with LIR2032, refine later
-        };
-        let raw_max: u32 = match self.adc_settings.resolution {
+        let vrefe5 = VREF_E5_VALUES[self.adc_settings.ref_voltage as usize];
+        let raw_max = match self.adc_settings.resolution {
             Resolution::_10bit => 1023, // 2^10 - 1
             Resolution::_8bit => 255,   // 2^8 - 1
         };
@@ -338,60 +333,39 @@ impl Sensors {
     }
 
     fn apply_adc_settings(&mut self, settings: AdcSettings) {
-        self.vref.ctrla.modify(|_, w| match settings.ref_voltage {
-            ReferenceVoltage::VRef0_55V => w.adc0refsel()._0v55(),
-            ReferenceVoltage::VRef1_1V => w.adc0refsel()._1v1(),
-            ReferenceVoltage::VRef2_5V => w.adc0refsel()._2v5(),
-            ReferenceVoltage::VRef4_34V => w.adc0refsel()._4v34(),
-            ReferenceVoltage::VRef1_5V => w.adc0refsel()._1v5(),
-            _ => w,
+        self.vref.ctrla.modify(|_, w| {
+            w.adc0refsel()
+                .variant(REF_VOLTAGE_VARIANTS[settings.ref_voltage as usize])
         });
 
         self.adc0.ctrla.write(|w| {
-            match settings.resolution {
-                Resolution::_10bit => w.ressel()._10bit(),
-                Resolution::_8bit => w.ressel()._8bit(),
-            };
+            w.ressel()
+                .variant(RESOLUTION_VARIANTS[settings.resolution as usize]);
             w.enable().set_bit()
         });
-        self.adc0.ctrlb.write(|w| match settings.sample_number {
-            SampleNumber::Acc1 => w.sampnum().acc1(),
-            SampleNumber::Acc2 => w.sampnum().acc2(),
-            SampleNumber::Acc4 => w.sampnum().acc4(),
-            SampleNumber::Acc8 => w.sampnum().acc8(),
-            SampleNumber::Acc16 => w.sampnum().acc16(),
-            SampleNumber::Acc32 => w.sampnum().acc32(),
-            SampleNumber::Acc64 => w.sampnum().acc64(),
+
+        self.adc0.ctrlb.write(|w| {
+            w.sampnum()
+                .variant(SAMPLE_NUMBER_VARIANTS[settings.sample_number as usize])
         });
+
         self.adc0.ctrlc.write(|w| {
             w.sampcap().bit(settings.samp_cap);
-            match settings.ref_voltage {
-                ReferenceVoltage::Vdd => w.refsel().vddref(),
-                _ => w.refsel().intref(), // internal Vref
-            };
-            match settings.clock_divider {
-                ClockDivider::Factor2 => w.presc().div2(),
-                ClockDivider::Factor4 => w.presc().div4(),
-                ClockDivider::Factor8 => w.presc().div8(),
-                ClockDivider::Factor16 => w.presc().div16(),
-                ClockDivider::Factor32 => w.presc().div32(),
-                ClockDivider::Factor64 => w.presc().div64(),
-                ClockDivider::Factor128 => w.presc().div128(),
-                ClockDivider::Factor256 => w.presc().div256(),
-            }
+            w.refsel().variant(match settings.ref_voltage {
+                ReferenceVoltage::Vdd => avrxmega_hal::pac::adc0::ctrlc::REFSEL_A::VDDREF,
+                _ => avrxmega_hal::pac::adc0::ctrlc::REFSEL_A::INTREF,
+            });
+            w.presc()
+                .variant(CLOCK_DIVIDER_VARIANTS[settings.clock_divider as usize])
         });
+
         self.adc0.ctrld.write(|w| {
-            match settings.init_delay {
-                DelayCycles::Delay0 => w.initdly().dly0(),
-                DelayCycles::Delay16 => w.initdly().dly16(),
-                DelayCycles::Delay32 => w.initdly().dly32(),
-                DelayCycles::Delay64 => w.initdly().dly64(),
-                DelayCycles::Delay128 => w.initdly().dly128(),
-                DelayCycles::Delay256 => w.initdly().dly256(),
-            };
+            w.initdly()
+                .variant(INIT_DELAY_VARIANTS[settings.init_delay as usize]);
             w.asdv().bit(settings.asdv);
-            w.sampdly().bits(settings.sample_delay) // bits() concats if too largeS
+            w.sampdly().bits(settings.sample_delay)
         });
+
         self.adc0
             .sampctrl
             .write(|w| w.samplen().bits(settings.sample_length));
@@ -400,56 +374,22 @@ impl Sensors {
     fn decrement_setting(&mut self) -> bool {
         match self.cur_setting {
             AdcSetting::Resolution => {
-                self.adc_settings.resolution = match self.adc_settings.resolution {
-                    Resolution::_10bit => Resolution::_8bit,
-                    Resolution::_8bit => Resolution::_8bit, // No wrap around
-                };
+                self.adc_settings.resolution = self.adc_settings.resolution.prev();
             }
             AdcSetting::SampleNumber => {
-                self.adc_settings.sample_number = match self.adc_settings.sample_number {
-                    SampleNumber::Acc64 => SampleNumber::Acc32,
-                    SampleNumber::Acc32 => SampleNumber::Acc16,
-                    SampleNumber::Acc16 => SampleNumber::Acc8,
-                    SampleNumber::Acc8 => SampleNumber::Acc4,
-                    SampleNumber::Acc4 => SampleNumber::Acc2,
-                    SampleNumber::Acc2 => SampleNumber::Acc1,
-                    SampleNumber::Acc1 => SampleNumber::Acc1, // No wrap around
-                };
+                self.adc_settings.sample_number = self.adc_settings.sample_number.prev();
             }
             AdcSetting::SampCap => {
                 self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
             }
             AdcSetting::RefVoltage => {
-                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
-                    ReferenceVoltage::Vdd => ReferenceVoltage::VRef4_34V,
-                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef2_5V,
-                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef1_1V,
-                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef0_55V,
-                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef0_55V, // No wrap around
-                };
+                self.adc_settings.ref_voltage = self.adc_settings.ref_voltage.prev();
             }
             AdcSetting::Prescaler => {
-                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
-                    ClockDivider::Factor256 => ClockDivider::Factor128,
-                    ClockDivider::Factor128 => ClockDivider::Factor64,
-                    ClockDivider::Factor64 => ClockDivider::Factor32,
-                    ClockDivider::Factor32 => ClockDivider::Factor16,
-                    ClockDivider::Factor16 => ClockDivider::Factor8,
-                    ClockDivider::Factor8 => ClockDivider::Factor4,
-                    ClockDivider::Factor4 => ClockDivider::Factor2,
-                    ClockDivider::Factor2 => ClockDivider::Factor2, // No wrap around
-                };
+                self.adc_settings.clock_divider = self.adc_settings.clock_divider.prev();
             }
             AdcSetting::InitDelay => {
-                self.adc_settings.init_delay = match self.adc_settings.init_delay {
-                    DelayCycles::Delay256 => DelayCycles::Delay128,
-                    DelayCycles::Delay128 => DelayCycles::Delay64,
-                    DelayCycles::Delay64 => DelayCycles::Delay32,
-                    DelayCycles::Delay32 => DelayCycles::Delay16,
-                    DelayCycles::Delay16 => DelayCycles::Delay0,
-                    DelayCycles::Delay0 => DelayCycles::Delay0, // No wrap around
-                };
+                self.adc_settings.init_delay = self.adc_settings.init_delay.prev();
             }
             AdcSetting::SetAsdv => {
                 self.adc_settings.asdv = !self.adc_settings.asdv;
@@ -468,56 +408,22 @@ impl Sensors {
     fn increment_setting(&mut self) -> bool {
         match self.cur_setting {
             AdcSetting::Resolution => {
-                self.adc_settings.resolution = match self.adc_settings.resolution {
-                    Resolution::_8bit => Resolution::_10bit,
-                    Resolution::_10bit => Resolution::_10bit, // No wrap around
-                };
+                self.adc_settings.resolution = self.adc_settings.resolution.next();
             }
             AdcSetting::SampleNumber => {
-                self.adc_settings.sample_number = match self.adc_settings.sample_number {
-                    SampleNumber::Acc1 => SampleNumber::Acc2,
-                    SampleNumber::Acc2 => SampleNumber::Acc4,
-                    SampleNumber::Acc4 => SampleNumber::Acc8,
-                    SampleNumber::Acc8 => SampleNumber::Acc16,
-                    SampleNumber::Acc16 => SampleNumber::Acc32,
-                    SampleNumber::Acc32 => SampleNumber::Acc64,
-                    SampleNumber::Acc64 => SampleNumber::Acc64, // No wrap around
-                };
+                self.adc_settings.sample_number = self.adc_settings.sample_number.next();
             }
             AdcSetting::SampCap => {
                 self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
             }
             AdcSetting::RefVoltage => {
-                self.adc_settings.ref_voltage = match self.adc_settings.ref_voltage {
-                    ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef1_1V,
-                    ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef1_5V,
-                    ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef2_5V,
-                    ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef4_34V,
-                    ReferenceVoltage::VRef4_34V => ReferenceVoltage::Vdd,
-                    ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
-                };
+                self.adc_settings.ref_voltage = self.adc_settings.ref_voltage.next();
             }
             AdcSetting::Prescaler => {
-                self.adc_settings.clock_divider = match self.adc_settings.clock_divider {
-                    ClockDivider::Factor2 => ClockDivider::Factor4,
-                    ClockDivider::Factor4 => ClockDivider::Factor8,
-                    ClockDivider::Factor8 => ClockDivider::Factor16,
-                    ClockDivider::Factor16 => ClockDivider::Factor32,
-                    ClockDivider::Factor32 => ClockDivider::Factor64,
-                    ClockDivider::Factor64 => ClockDivider::Factor128,
-                    ClockDivider::Factor128 => ClockDivider::Factor256,
-                    ClockDivider::Factor256 => ClockDivider::Factor256, // No wrap around
-                };
+                self.adc_settings.clock_divider = self.adc_settings.clock_divider.next();
             }
             AdcSetting::InitDelay => {
-                self.adc_settings.init_delay = match self.adc_settings.init_delay {
-                    DelayCycles::Delay0 => DelayCycles::Delay16,
-                    DelayCycles::Delay16 => DelayCycles::Delay32,
-                    DelayCycles::Delay32 => DelayCycles::Delay64,
-                    DelayCycles::Delay64 => DelayCycles::Delay128,
-                    DelayCycles::Delay128 => DelayCycles::Delay256,
-                    DelayCycles::Delay256 => DelayCycles::Delay256, // No wrap around
-                };
+                self.adc_settings.init_delay = self.adc_settings.init_delay.next();
             }
             AdcSetting::SetAsdv => {
                 self.adc_settings.asdv = !self.adc_settings.asdv;
@@ -548,9 +454,11 @@ impl Mode for Sensors {
                         update = true;
                     } else {
                         // disable ADC when leaving utils mode
-                        self.cur_reading = AdcReading::Temp; // reset to first util
+                        self.settings_active = false;
                         self.adc0.ctrla.write(|w| w.enable().clear_bit());
-                        context.settings.save_setting_byte(Setting::SensorPage, self.cur_reading as u8);
+                        context
+                            .settings
+                            .save_setting_byte(Setting::SensorPage, self.cur_reading as u8);
                         context.to_menu();
                         return;
                     }
@@ -558,18 +466,7 @@ impl Mode for Sensors {
                 Event::RightHeld => {
                     // toggle setting or toggle into settings
                     if self.settings_active {
-                        let next_setting = match self.cur_setting {
-                            AdcSetting::Resolution => AdcSetting::SampleNumber,
-                            AdcSetting::SampleNumber => AdcSetting::SampCap,
-                            AdcSetting::SampCap => AdcSetting::RefVoltage,
-                            AdcSetting::RefVoltage => AdcSetting::Prescaler,
-                            AdcSetting::Prescaler => AdcSetting::InitDelay,
-                            AdcSetting::InitDelay => AdcSetting::SetAsdv,
-                            AdcSetting::SetAsdv => AdcSetting::SampleDelay,
-                            AdcSetting::SampleDelay => AdcSetting::SampleLength,
-                            AdcSetting::SampleLength => AdcSetting::Resolution,
-                        };
-                        self.cur_setting = next_setting;
+                        self.cur_setting = self.cur_setting.next();
                     } else {
                         self.settings_active = true;
                     }
@@ -599,13 +496,7 @@ impl Mode for Sensors {
                     if self.settings_active {
                         update = self.increment_setting();
                     } else {
-                        let next_util = match self.cur_reading {
-                            AdcReading::Temp => AdcReading::Vext,
-                            AdcReading::Vext => AdcReading::Vref,
-                            AdcReading::Vref => AdcReading::Gnd,
-                            AdcReading::Gnd => AdcReading::Temp,
-                        };
-                        self.cur_reading = next_util;
+                        self.cur_reading = self.cur_reading.next();
                         self.util_init = false;
                     }
                 }
@@ -742,10 +633,25 @@ impl Default for Resolution {
     }
 }
 
-#[allow(dead_code)]
+impl Resolution {
+    fn next(&self) -> Self {
+        match self {
+            Resolution::_8bit => Resolution::_10bit,
+            Resolution::_10bit => Resolution::_10bit, // No wrap around
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            Resolution::_10bit => Resolution::_8bit,
+            Resolution::_8bit => Resolution::_8bit, // No wrap around
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum SampleNumber {
-    Acc1, // 1 sample, no accumulation
+    Acc1 = 0, // 1 sample, no accumulation
     Acc2,
     Acc4,
     Acc8,
@@ -754,11 +660,37 @@ pub enum SampleNumber {
     Acc64,
 }
 
+impl SampleNumber {
+    fn next(&self) -> Self {
+        match self {
+            SampleNumber::Acc1 => SampleNumber::Acc2,
+            SampleNumber::Acc2 => SampleNumber::Acc4,
+            SampleNumber::Acc4 => SampleNumber::Acc8,
+            SampleNumber::Acc8 => SampleNumber::Acc16,
+            SampleNumber::Acc16 => SampleNumber::Acc32,
+            SampleNumber::Acc32 => SampleNumber::Acc64,
+            SampleNumber::Acc64 => SampleNumber::Acc64, // No wrap around
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            SampleNumber::Acc64 => SampleNumber::Acc32,
+            SampleNumber::Acc32 => SampleNumber::Acc16,
+            SampleNumber::Acc16 => SampleNumber::Acc8,
+            SampleNumber::Acc8 => SampleNumber::Acc4,
+            SampleNumber::Acc4 => SampleNumber::Acc2,
+            SampleNumber::Acc2 => SampleNumber::Acc1,
+            SampleNumber::Acc1 => SampleNumber::Acc1, // No wrap around
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 /// Select the voltage reference for the ADC peripheral, overloaded with Vref settings
 pub enum ReferenceVoltage {
     // internal refs
-    VRef0_55V,
+    VRef0_55V = 0,
     VRef1_1V,
     VRef1_5V,
     VRef2_5V,
@@ -773,17 +705,41 @@ impl Default for ReferenceVoltage {
     }
 }
 
+impl ReferenceVoltage {
+    fn next(&self) -> Self {
+        match self {
+            ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef1_1V,
+            ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef1_5V,
+            ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef2_5V,
+            ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef4_34V,
+            ReferenceVoltage::VRef4_34V => ReferenceVoltage::Vdd,
+            ReferenceVoltage::Vdd => ReferenceVoltage::Vdd, // No wrap around
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            ReferenceVoltage::Vdd => ReferenceVoltage::VRef4_34V,
+            ReferenceVoltage::VRef4_34V => ReferenceVoltage::VRef2_5V,
+            ReferenceVoltage::VRef2_5V => ReferenceVoltage::VRef1_5V,
+            ReferenceVoltage::VRef1_5V => ReferenceVoltage::VRef1_1V,
+            ReferenceVoltage::VRef1_1V => ReferenceVoltage::VRef0_55V,
+            ReferenceVoltage::VRef0_55V => ReferenceVoltage::VRef0_55V, // No wrap around
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum ClockDivider {
-    Factor2 = 0,
-    Factor4 = 1,
-    Factor8 = 2,
-    Factor16 = 3,
-    Factor32 = 4,
-    Factor64 = 5,
+    Factor2,
+    Factor4,
+    Factor8,
+    Factor16,
+    Factor32,
+    Factor64,
     /// (default)
-    Factor128 = 6,
-    Factor256 = 7,
+    Factor128,
+    Factor256,
 }
 
 impl Default for ClockDivider {
@@ -792,14 +748,64 @@ impl Default for ClockDivider {
     }
 }
 
-#[allow(dead_code)]
+impl ClockDivider {
+    fn next(&self) -> Self {
+        match self {
+            ClockDivider::Factor2 => ClockDivider::Factor4,
+            ClockDivider::Factor4 => ClockDivider::Factor8,
+            ClockDivider::Factor8 => ClockDivider::Factor16,
+            ClockDivider::Factor16 => ClockDivider::Factor32,
+            ClockDivider::Factor32 => ClockDivider::Factor64,
+            ClockDivider::Factor64 => ClockDivider::Factor128,
+            ClockDivider::Factor128 => ClockDivider::Factor256,
+            ClockDivider::Factor256 => ClockDivider::Factor256, // No wrap around
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            ClockDivider::Factor256 => ClockDivider::Factor128,
+            ClockDivider::Factor128 => ClockDivider::Factor64,
+            ClockDivider::Factor64 => ClockDivider::Factor32,
+            ClockDivider::Factor32 => ClockDivider::Factor16,
+            ClockDivider::Factor16 => ClockDivider::Factor8,
+            ClockDivider::Factor8 => ClockDivider::Factor4,
+            ClockDivider::Factor4 => ClockDivider::Factor2,
+            ClockDivider::Factor2 => ClockDivider::Factor2, // No wrap around
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum DelayCycles {
-    #[doc = "0: Delay 0 CLK_ADC cycles"]
-    Delay0,
+    Delay0 = 0,
     Delay16,
     Delay32,
     Delay64,
     Delay128,
     Delay256,
+}
+
+impl DelayCycles {
+    fn next(&self) -> Self {
+        match self {
+            DelayCycles::Delay0 => DelayCycles::Delay16,
+            DelayCycles::Delay16 => DelayCycles::Delay32,
+            DelayCycles::Delay32 => DelayCycles::Delay64,
+            DelayCycles::Delay64 => DelayCycles::Delay128,
+            DelayCycles::Delay128 => DelayCycles::Delay256,
+            DelayCycles::Delay256 => DelayCycles::Delay256, // No wrap around
+        }
+    }
+
+    fn prev(&self) -> Self {
+        match self {
+            DelayCycles::Delay256 => DelayCycles::Delay128,
+            DelayCycles::Delay128 => DelayCycles::Delay64,
+            DelayCycles::Delay64 => DelayCycles::Delay32,
+            DelayCycles::Delay32 => DelayCycles::Delay16,
+            DelayCycles::Delay16 => DelayCycles::Delay0,
+            DelayCycles::Delay0 => DelayCycles::Delay0, // No wrap around
+        }
+    }
 }

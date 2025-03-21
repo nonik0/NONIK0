@@ -34,7 +34,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: settings.read_setting_byte(Setting::LastMode) % NUM_MODES,
+            mode_index: 1, //settings.read_setting_byte(Setting::LastMode) % NUM_MODES,
             settings,
         }
     }
@@ -71,8 +71,6 @@ impl Context {
 }
 
 pub trait Mode {
-    //type Setting;
-
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display);
 }
 
