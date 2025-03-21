@@ -37,10 +37,8 @@ type Display = hcms_29xx::Hcms29xx<
 >;
 type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
 type Event = input::InputEvent;
+type Setting = saved_settings::Setting;
 type SavedSettings = saved_settings::SavedSettings;
-
-const DEFAULT_BRIGHTNESS: u8 = 12;
-const DEFAULT_CURRENT: DisplayPeakCurrent = DisplayPeakCurrent::Max6_4Ma;
 
 // The virtual display size is larger to accomodate the physical gaps between characters.
 // The const COLUMN_GAP is the number of "empty" columns between characters and will set
@@ -68,9 +66,6 @@ fn main() -> ! {
 
     let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
 
-    let mut context = Context::new(settings);
-    let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context);
-
     let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
         pins.pa6.into_output(),
         pins.pa4.into_output(),
@@ -81,15 +76,11 @@ fn main() -> ! {
         pins.pb0.into_output(),
     )
     .unwrap();
+
     display.begin().unwrap();
     display.display_unblank().unwrap();
-    display
-        .set_brightness(context.settings.brightness())
-        .unwrap();
-    display
-        .set_peak_current(context.settings.current())
-        .unwrap();
-
+    let mut context = Context::new(settings);
+    let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context, &mut display);
     loop {
         let event = buttons.update();
 

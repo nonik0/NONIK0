@@ -1,5 +1,5 @@
 use super::Mode;
-use crate::{Adc0, Context, Display, Event, Sigrow, Vref, NUM_CHARS};
+use crate::{Adc0, Context, Display, Event,SavedSettings, Setting, Sigrow, Vref, NUM_CHARS};
 
 #[derive(Clone, Copy)]
 enum AdcReading {
@@ -52,9 +52,16 @@ impl Sensors {
         sample_length: 10,
     };
 
-    pub fn new_with_adc(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
+    pub fn new_with_settings(settings: &SavedSettings, adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
+        let saved_reading = match settings.read_setting_byte(Setting::SensorPage)  {
+            1 => AdcReading::Vext,
+            2 => AdcReading::Vref,
+            3 => AdcReading::Gnd,
+            _ => AdcReading::Temp,
+        };
+
         Sensors {
-            cur_reading: AdcReading::Temp,
+            cur_reading: saved_reading,
             cur_setting: AdcSetting::Resolution,
             settings_active: false,
             last_update: 0,
@@ -543,6 +550,7 @@ impl Mode for Sensors {
                         // disable ADC when leaving utils mode
                         self.cur_reading = AdcReading::Temp; // reset to first util
                         self.adc0.ctrla.write(|w| w.enable().clear_bit());
+                        context.settings.save_setting_byte(Setting::SensorPage, self.cur_reading as u8);
                         context.to_menu();
                         return;
                     }

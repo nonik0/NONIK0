@@ -1,5 +1,5 @@
 use super::Mode;
-use crate::{Context, Display, Event, NUM_CHARS};
+use crate::{Context, Display, Event, SavedSettings, Setting, NUM_CHARS};
 
 const BLINK_PERIOD_ON: u8 = 1;
 const BLINK_PERIOD: u8 = 20;
@@ -18,9 +18,12 @@ pub struct Nametag {
 }
 
 impl Nametag {
-    pub fn new_with_name(name: &[u8; NUM_CHARS]) -> Self {
+    pub fn new_with_settings(settings: &SavedSettings) -> Self {
+        let mut name_buf = [0; NUM_CHARS];
+        settings.read_setting(Setting::Name, &mut name_buf);
+
         Nametag {
-            name: *name,
+            name: name_buf,
             last_update: 0,
 
             editing: false,
@@ -132,8 +135,10 @@ impl Mode for Nametag {
                 match event {
                     Event::LeftHeld => {
                         // save name if eeprom if updated
-                        if self.name != context.settings.name() {
-                            context.settings.save_name(&self.name);
+                        let mut saved_named = [0; NUM_CHARS];
+                        context.settings.read_setting(Setting::Name, &mut saved_named);
+                        if self.name != saved_named {
+                            context.settings.save_setting(Setting::Name, &self.name);
                         }
                         context.to_menu();
                         return;
