@@ -34,7 +34,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: 1,
+            mode_index: settings.last_mode() % NUM_MODES,
             settings,
         }
     }
@@ -66,6 +66,7 @@ impl Context {
     #[inline(always)]
     pub fn to_mode(&mut self, index: u8) {
         self.mode_index = index;
+        self.settings.save_last_mode(index);
     }
 }
 
