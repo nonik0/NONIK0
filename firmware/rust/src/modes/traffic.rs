@@ -3,6 +3,13 @@ use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use heapless::Vec;
 use random_trait::Random;
 
+const DRIVER_PERIOD_START: u8 = 35;
+const TRAFFIC_PERIOD_START: u8 = 5;
+const GOAL_COL: u8 = 0b0101_0101;
+const GOAL_POS_START: u8 = ((NUM_VIRT_COLS >> 1) + hcms_29xx::CHAR_WIDTH) as u8;
+const TRUCK_MAX_COUNT_START: usize = 1;
+const MAX_TRUCKS: usize = 3;
+
 #[derive(Clone, Copy, Debug, Default)]
 struct Truck {
     lane: u8,
@@ -52,17 +59,10 @@ pub struct Traffic {
     traffic_period: u8,
     truck_max_count: usize,
     truck_count: usize,
-    trucks: [Truck; Self::MAX_TRUCKS],
+    trucks: [Truck; MAX_TRUCKS],
 }
 
 impl Traffic {
-    const DRIVER_PERIOD_START: u8 = 20;
-    const TRAFFIC_PERIOD_START: u8 = 3;
-    const GOAL_COL: u8 = 0b0101_0101;
-    const GOAL_POS_START: u8 = ((NUM_VIRT_COLS >> 1) + hcms_29xx::CHAR_WIDTH) as u8;
-    const TRUCK_MAX_COUNT_START: usize = 1;
-    const MAX_TRUCKS: usize = 3;
-
     pub fn new() -> Self {
         let mut buf: Vec<u8, NUM_VIRT_COLS> = Vec::new();
         for _ in 0..NUM_VIRT_COLS {
@@ -75,22 +75,22 @@ impl Traffic {
             // driver is a 2x1 rectangle
             is_driving: true,
             driver_counter: 0,
-            driver_period: Self::DRIVER_PERIOD_START,
+            driver_period: DRIVER_PERIOD_START,
             driver_pos: 1,
             driver_lane: NUM_ROWS as u8 >> 1,
 
-            goal_pos: Self::GOAL_POS_START,
-            goal_col: Self::GOAL_COL,
+            goal_pos: GOAL_POS_START,
+            goal_col: GOAL_COL,
             crashed: false,
 
             // traffic will have random "blocks" (i.e. trucks) to driver around
             traffic_cols: buf,
             traffic_counter: 0,
-            traffic_period: Self::TRAFFIC_PERIOD_START,
+            traffic_period: TRAFFIC_PERIOD_START,
 
-            truck_max_count: Self::TRUCK_MAX_COUNT_START,
+            truck_max_count: TRUCK_MAX_COUNT_START,
             truck_count: 0,
-            trucks: [Truck::default(); Self::MAX_TRUCKS],
+            trucks: [Truck::default(); MAX_TRUCKS],
         }
     }
 
@@ -116,7 +116,7 @@ impl Traffic {
     fn clear_traffic(&mut self) {
         self.crashed = false;
         self.truck_count = 0;
-        for i in 0..Self::MAX_TRUCKS {
+        for i in 0..MAX_TRUCKS {
             self.trucks[i].length = 0;
         }
 
@@ -185,8 +185,8 @@ impl Traffic {
 
         // Find the available gaps in the traffic lanes
         const MIN_GAP_SIZE: usize = 3;
-        let mut gap_lanes = [0u8; Self::MAX_TRUCKS + 1];
-        let mut gap_sizes = [0u8; Self::MAX_TRUCKS + 1];
+        let mut gap_lanes = [0u8; MAX_TRUCKS + 1];
+        let mut gap_sizes = [0u8; MAX_TRUCKS + 1];
         let mut gap_count = 0;
 
         let mut gap_start_lane = 0u8;
@@ -215,7 +215,7 @@ impl Traffic {
             && self.truck_count < self.truck_max_count
             && (rand.get_u8() % truck_chance) == 0
         {
-            for i in 0..Self::MAX_TRUCKS {
+            for i in 0..MAX_TRUCKS {
                 if self.trucks[i].length == 0 {
                     // pick random gap to place truck within, size 3 gaps can only have 1 width trucks
                     let gap_index = rand.get_u8() as usize % gap_count;
@@ -318,9 +318,9 @@ impl Mode for Traffic {
 
                     // goal resets increase diff
                     if self.goal_pos >= NUM_VIRT_COLS as u8 - 1 {
-                        self.goal_pos = Self::GOAL_POS_START;
+                        self.goal_pos = GOAL_POS_START;
 
-                        if self.truck_max_count < Self::MAX_TRUCKS {
+                        if self.truck_max_count < MAX_TRUCKS {
                             self.truck_max_count += 1;
                         } else if self.traffic_period > 2 {
                             self.truck_max_count = 1;
@@ -330,10 +330,10 @@ impl Mode for Traffic {
                         }
                     }
                 } else {
-                    self.goal_pos = Self::GOAL_POS_START;
-                    self.driver_period = Self::DRIVER_PERIOD_START;
-                    self.traffic_period = Self::TRAFFIC_PERIOD_START;
-                    self.truck_max_count = Self::TRUCK_MAX_COUNT_START;
+                    self.goal_pos = GOAL_POS_START;
+                    self.driver_period = DRIVER_PERIOD_START;
+                    self.traffic_period = TRAFFIC_PERIOD_START;
+                    self.truck_max_count = TRUCK_MAX_COUNT_START;
                 }
 
                 self.is_driving = true;

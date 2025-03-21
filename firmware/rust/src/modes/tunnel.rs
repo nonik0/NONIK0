@@ -3,6 +3,8 @@ use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use heapless::Vec;
 use random_trait::Random;
 
+const TUNNEL_PERIOD: u8 = 5;
+
 pub struct Tunnel {
     last_update: u16,
     tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
@@ -119,7 +121,7 @@ impl TunnelState {
     fn new() -> Self {
         TunnelState {
             counter: 0,
-            period: 3,
+            period: TUNNEL_PERIOD,
             pos: 1,
             cur_width: NUM_ROWS as u8 - 2,
             min_width: NUM_ROWS as u8 - 2,
