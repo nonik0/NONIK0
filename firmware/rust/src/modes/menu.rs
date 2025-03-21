@@ -1,4 +1,4 @@
-use crate::{Context, Display, Event};
+use crate::{Context, Display, Event, Setting, SavedSettings};
 use super::{names, Mode, NUM_MODES};
 
 pub struct Menu {
@@ -7,9 +7,11 @@ pub struct Menu {
 }
 
 impl Menu {
-    pub fn new(start_index: u8) -> Self {
+    pub fn new_with_settings(settings: &SavedSettings) -> Self {
+        let saved_index = settings.read_setting_byte(Setting::LastMode);
+
         Menu {
-            index: start_index,
+            index: saved_index,
             last_update: 0,
         }
     }

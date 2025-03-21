@@ -1,10 +1,11 @@
 use super::Mode;
-use crate::{Context, Display, Event, Rand, NUM_CHARS, NUM_COLS};
+use crate::{Context, Display, Event, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS};
 use hcms_29xx::CHAR_WIDTH;
 use random_trait::Random as _;
 
+#[derive(Clone, Copy)]
 enum Page {
-    IntegerBase10,
+    IntegerBase10 = 0,
     // hex integer?
     RollD6,
     EightBall,
@@ -83,10 +84,18 @@ pub struct Random {
 }
 
 impl Random {
-    pub fn new() -> Self {
+    pub fn new_with_settings(settings: &SavedSettings) -> Self {
+        let saved_page = settings.read_setting_byte(Setting::RandomPage);
+        let page = match saved_page {
+            1 => Page::RollD6,
+            2 => Page::EightBall,
+            3 => Page::Cuisine,
+            _ => Page::IntegerBase10,
+        };
+
         Random {
             last_update: 0,
-            cur_page: Page::IntegerBase10,
+            cur_page: page,
         }
     }
 
@@ -131,6 +140,7 @@ impl Mode for Random {
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
+                    context.settings.save_setting_byte(Setting::RandomPage, self.cur_page as u8);
                     context.to_menu();
                     return;
                 }

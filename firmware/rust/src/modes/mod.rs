@@ -1,4 +1,4 @@
-use crate::{NUM_CHARS, Display, Event, SavedSettings};
+use crate::{NUM_CHARS, Display, Event, Setting, SavedSettings};
 use static_cell::make_static;
 
 mod menu;
@@ -34,7 +34,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         Context {
             menu_counter: 1,
-            mode_index: settings.last_mode() % NUM_MODES,
+            mode_index: settings.read_setting_byte(Setting::LastMode) % NUM_MODES,
             settings,
         }
     }
@@ -66,11 +66,13 @@ impl Context {
     #[inline(always)]
     pub fn to_mode(&mut self, index: u8) {
         self.mode_index = index;
-        self.settings.save_last_mode(index);
+        self.settings.save_setting_byte(Setting::LastMode, self.mode_index);
     }
 }
 
 pub trait Mode {
+    //type Setting;
+
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display);
 }
 
@@ -87,7 +89,7 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     ][index as usize]
 }
 
-pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context: &Context) -> [&'static mut dyn Mode; NUM_MODES as usize] {
+pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context: &Context, display: &mut Display) -> [&'static mut dyn Mode; NUM_MODES as usize] {
     unsafe {
         if MODES_TAKEN {
             panic!("Modes already taken!");
@@ -95,16 +97,18 @@ pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context:
         MODES_TAKEN = true;
     }
 
-    let menu = make_static!(Menu::new(context.mode_index));
-    let nametag = make_static!(Nametag::new_with_name(&context.settings.name()));
-    let random = make_static!(Random::new());
-    let sensors = make_static!(Sensors::new_with_adc(adc, sigrow, vref));
-    let settings = make_static!(Settings::new_with_settings(context.settings.brightness(), context.settings.current()));
+    let menu = make_static!(Menu::new_with_settings(&context.settings));
+    let nametag = make_static!(Nametag::new_with_settings(&context.settings));
+    let random = make_static!(Random::new_with_settings(&context.settings));
+    let sensors = make_static!(Sensors::new_with_settings(&context.settings, adc, sigrow, vref));
+    let settings = make_static!(Settings::new_with_settings(&context.settings));
     let traffic = make_static!(Traffic::new());
     let tunnel = make_static!(Tunnel::new());
     let vibes = make_static!(Vibes::new());
 
+    // TODO: improve design of mode initialization
     sensors.seed_rand();
+    settings.apply(display);
 
     [menu, nametag, random, sensors, settings, traffic, tunnel, vibes]
 }
