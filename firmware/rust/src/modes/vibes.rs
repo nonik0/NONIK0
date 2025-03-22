@@ -1,9 +1,8 @@
 // parallax animation of "driving" during through mountains and clouds
 
-use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use super::Mode;
-use heapless::Vec;
-use random_trait::Random; // Import the correct module based on feature flag
+use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_COLS, NUM_ROWS, NUM_VIRT_COLS};
+use random_trait::Random;
 
 const DEFAULT_SKY_PERIOD: u8 = 7;
 const DEFAULT_EARTH_PERIOD: u8 = 3;
@@ -21,47 +20,58 @@ pub struct Vibes {
     last_update: u16,
     cur_vibe: Vibe,
 
-    cloud_cols: Vec<u8, NUM_VIRT_COLS>,
+    cloud_cols: [u8; NUM_VIRT_COLS],
     cloud_counter: u8,
     cloud_period: u8,
     cloud_state: CloudState,
 
-    earth_cols: Vec<u8, NUM_VIRT_COLS>,
+    earth_cols: [u8; NUM_VIRT_COLS],
     earth_counter: u8,
     earth_period: u8,
-    earth_state: MountainState,
+    earth_state: EarthState,
+
+    cloud_index: usize,
+    earth_index: usize,
 }
 
 impl Vibes {
     pub fn new() -> Self {
-        let mut cloud_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-        let cloud_counter: u8 = 0;
-        let cloud_state = CloudState::new();
-        for _ in 0..NUM_VIRT_COLS {
-            cloud_cols.push(SKY_COL).unwrap();
-        }
-
-        let mut earth_cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-        let earth_counter: u8 = 0;
-        let earth_state = MountainState::new();
-        for _ in 0..NUM_VIRT_COLS {
-            earth_cols.push(SKY_COL).unwrap();
-        }
-
         Vibes {
             last_update: 0,
             cur_vibe: Vibe::Mountains,
 
-            cloud_cols,
-            cloud_counter,
+            cloud_cols: [SKY_COL; NUM_VIRT_COLS],
+            cloud_counter: 0,
             cloud_period: DEFAULT_SKY_PERIOD,
-            cloud_state,
+            cloud_state: CloudState::new(),
 
-            earth_cols,
-            earth_counter,
+            earth_cols: [SKY_COL; NUM_VIRT_COLS],
+            earth_counter: 0,
             earth_period: DEFAULT_EARTH_PERIOD,
-            earth_state,
+            earth_state: EarthState::new(),
+
+            cloud_index: 0,
+            earth_index: 0,
         }
+    }
+
+    fn next_index(&self, index: usize) -> usize {
+        (index + 1) % NUM_VIRT_COLS
+    }
+
+    fn render(&mut self, display: &mut Display) {
+        let mut cols = [0u8; NUM_COLS];
+        let mut col_num = 0;
+
+        for virt_col_num in 0..NUM_VIRT_COLS {
+            if virt_col_num % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
+                let cloud_col = self.cloud_cols[(self.cloud_index + virt_col_num) % NUM_VIRT_COLS];
+                let earth_col = self.earth_cols[(self.earth_index + virt_col_num) % NUM_VIRT_COLS];
+                cols[col_num] = cloud_col & earth_col;
+                col_num += 1;
+            }
+        }
+        display.print_cols(&cols).unwrap();
     }
 }
 
@@ -72,12 +82,11 @@ impl Mode for Vibes {
         if let Some(event) = event {
             update = true;
 
-            // TODO: eeprom setting once implemented
             match event {
                 Event::LeftHeld => {
                     context.to_menu();
                     return;
-                },
+                }
                 Event::RightHeld => match self.cur_vibe {
                     Vibe::Clouds => self.cur_vibe = Vibe::Mountains,
                     Vibe::Mountains => self.cur_vibe = Vibe::Clouds,
@@ -87,62 +96,50 @@ impl Mode for Vibes {
                         if self.cloud_period < MAX_PERIOD {
                             self.cloud_period += 1;
                         }
-                    },
+                    }
                     Vibe::Mountains => {
                         if self.earth_period < MAX_PERIOD {
                             self.earth_period += 1;
                         }
-                    },
+                    }
                 },
                 Event::RightReleased => match self.cur_vibe {
                     Vibe::Clouds => {
                         if self.cloud_period > 1 {
                             self.cloud_period -= 1;
                         }
-                    },
+                    }
                     Vibe::Mountains => {
                         if self.earth_period > 1 {
                             self.earth_period -= 1;
                         }
-                    },
+                    }
                 },
-                _ => {},
+                _ => {}
             }
         }
 
         self.cloud_counter = (self.cloud_counter + 1) % self.cloud_period;
         if self.cloud_counter == 0 {
             update = true;
-
-            let new_cloud_col = self.cloud_state.next_col();
-            self.cloud_cols.remove(0);
-            self.cloud_cols.push(new_cloud_col).unwrap();
+            self.cloud_cols[self.cloud_index] = self.cloud_state.next_col();
+            self.cloud_index = self.next_index(self.cloud_index);
         }
 
         self.earth_counter = (self.earth_counter + 1) % self.earth_period;
         if self.earth_counter == 0 {
             update = true;
-
-            let new_earth_col = self.earth_state.next_col();
-            self.earth_cols.remove(0);
-            self.earth_cols.push(new_earth_col).unwrap();
+            self.earth_cols[self.earth_index] = self.earth_state.next_col();
+            self.earth_index = self.next_index(self.earth_index);
         }
 
         if update {
-            let mut cols: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-            for i in 0..NUM_VIRT_COLS {
-                if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
-                    let cloud_col = self.cloud_cols.get(i).copied().unwrap_or(0);
-                    let earth_col = self.earth_cols.get(i).copied().unwrap_or(0);
-                    cols.push(cloud_col & earth_col).unwrap();
-                }
-            }
-
-            display.print_cols(cols.as_slice()).unwrap();
+            self.render(display);
         }
     }
 }
 
+#[derive(Default)]
 struct CloudState {
     loc: u8,
     gap: u8,
@@ -153,19 +150,15 @@ struct CloudState {
 
 impl CloudState {
     fn new() -> Self {
-        CloudState {
-            loc: 0,
-            gap: 1,
-            cur_length: 0,
-            length: 0,
-            height: 0,
-        }
+        let mut state = CloudState::default();
+        state.next_cloud();
+        state
     }
 
     fn next_cloud(&mut self) {
         let mut rng = Rand::default();
         self.gap = rng.get_u8() % 10 + 1;
-        self.loc = 1 + rng.get_u8() % (NUM_ROWS as u8 - 2);
+        self.loc = 1 + rng.get_u8() % (NUM_ROWS as u8 - 3);
         self.height = 2 + rng.get_u8() % 2;
         self.length = 6 + rng.get_u8() % 10;
         if self.height == 3 && self.loc > 4 {
@@ -174,30 +167,22 @@ impl CloudState {
     }
 
     fn next_col(&mut self) -> u8 {
-        let mut col = SKY_COL;
-
         if self.gap > 0 {
             self.gap -= 1;
+            SKY_COL
         } else if self.cur_length < self.length {
-            for i in 0..NUM_ROWS {
-                let bit = if (i as u8) >= self.loc && (i as u8) < self.loc + self.height {
-                    0
-                } else {
-                    1
-                };
-                col = col << 1 | bit;
-            }
             self.cur_length += 1;
+            SKY_COL ^ (((1 << self.height) - 1) << self.loc) // check inversion
         } else {
             self.cur_length = 0;
             self.next_cloud();
+            SKY_COL
         }
-
-        col
     }
 }
 
-struct MountainState {
+#[derive(Default)]
+struct EarthState {
     cur_height: u8,
     cur_length: u8,
     height: u8,
@@ -205,15 +190,11 @@ struct MountainState {
     increment: i8,
 }
 
-impl MountainState {
+impl EarthState {
     fn new() -> Self {
-        MountainState {
-            cur_height: 0,
-            cur_length: 0,
-            height: 7,
-            length: 15,
-            increment: 1,
-        }
+        let mut state = EarthState::default();
+        state.next_mountain();
+        state
     }
 
     fn next_mountain(&mut self) {
@@ -231,12 +212,6 @@ impl MountainState {
         self.cur_height = (self.cur_height as i8 + self.increment) as u8;
         self.cur_length += 1;
 
-        // Shift in 0s from bottom/left to build to current height
-        let mut col = SKY_COL;
-        for _ in 0..self.cur_height {
-            col = col >> 1;
-        }
-
         // Start going down
         if self.increment > 0 && self.cur_height >= self.height {
             self.increment = -1;
@@ -252,7 +227,6 @@ impl MountainState {
             self.next_mountain();
         }
 
-        col
+        (1 << (NUM_ROWS as u8 - self.cur_height)) - 1
     }
 }
-

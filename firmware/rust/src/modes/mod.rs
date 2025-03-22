@@ -1,4 +1,4 @@
-use crate::{NUM_CHARS, Display, Event, Setting, SavedSettings};
+use crate::{Display, Event, SavedSettings, Setting, NUM_CHARS};
 use static_cell::make_static;
 
 mod menu;
@@ -32,9 +32,14 @@ pub struct Context {
 
 impl Context {
     pub fn new(settings: SavedSettings) -> Self {
+        let mut saved_index = settings.read_setting_byte(Setting::LastMode);
+        if saved_index >= NUM_MODES {
+            saved_index = 1;
+        }
+
         Context {
             menu_counter: 1,
-            mode_index: 1, //settings.read_setting_byte(Setting::LastMode) % NUM_MODES,
+            mode_index: saved_index,
             settings,
         }
     }
@@ -62,11 +67,12 @@ impl Context {
     pub fn mode(&mut self) -> usize {
         self.mode_index as usize
     }
-    
+
     #[inline(always)]
     pub fn to_mode(&mut self, index: u8) {
         self.mode_index = index;
-        self.settings.save_setting_byte(Setting::LastMode, self.mode_index);
+        self.settings
+            .save_setting_byte(Setting::LastMode, self.mode_index);
     }
 }
 
@@ -87,7 +93,13 @@ pub fn names(index: u8) -> &'static [u8; NUM_CHARS] {
     ][index as usize]
 }
 
-pub fn take(adc: crate::Adc0, sigrow: crate::Sigrow, vref: crate::Vref, context: &Context, display: &mut Display) -> [&'static mut dyn Mode; NUM_MODES as usize] {
+pub fn take(
+    adc: crate::Adc0,
+    sigrow: crate::Sigrow,
+    vref: crate::Vref,
+    context: &Context,
+    display: &mut Display,
+) -> [&'static mut dyn Mode; NUM_MODES as usize] {
     unsafe {
         if MODES_TAKEN {
             panic!("Modes already taken!");

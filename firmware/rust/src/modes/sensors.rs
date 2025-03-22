@@ -216,23 +216,51 @@ impl Sensors {
     }
 
     fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
-        buf.copy_from_slice(match self.cur_setting {
-            AdcSetting::Resolution => RESOLUTION_STRINGS[self.adc_settings.resolution as usize],
-            AdcSetting::SampleNumber => SAMPLE_NUMBER_STRINGS[self.adc_settings.sample_number as usize],
-            AdcSetting::SampCap => SAMP_CAP_STRINGS[self.adc_settings.samp_cap as usize],
-            AdcSetting::RefVoltage => REF_VOLTAGE_STRINGS[self.adc_settings.ref_voltage as usize],
-            AdcSetting::Prescaler => CLOCK_DIVIDER_STRINGS[self.adc_settings.clock_divider as usize],
-            AdcSetting::InitDelay => INIT_DELAY_STRINGS[self.adc_settings.init_delay as usize],
-            AdcSetting::SetAsdv => ASDV_STRINGS[self.adc_settings.asdv as usize],
+        match self.cur_setting {
+            AdcSetting::Resolution => {
+                buf.copy_from_slice(RESOLUTION_STRINGS[self.adc_settings.resolution as usize]);
+            }
+            AdcSetting::SampleNumber => {
+                buf.copy_from_slice(
+                    SAMPLE_NUMBER_STRINGS[self.adc_settings.sample_number as usize],
+                );
+            }
+            AdcSetting::SampCap => {
+                buf.copy_from_slice(SAMP_CAP_STRINGS[self.adc_settings.samp_cap as usize]);
+            }
+            AdcSetting::RefVoltage => {
+                buf.copy_from_slice(REF_VOLTAGE_STRINGS[self.adc_settings.ref_voltage as usize]);
+            }
+            AdcSetting::Prescaler => {
+                buf.copy_from_slice(
+                    CLOCK_DIVIDER_STRINGS[self.adc_settings.clock_divider as usize],
+                );
+            }
+            AdcSetting::InitDelay => {
+                buf.copy_from_slice(INIT_DELAY_STRINGS[self.adc_settings.init_delay as usize]);
+            }
+            AdcSetting::SetAsdv => {
+                buf.copy_from_slice(ASDV_STRINGS[self.adc_settings.asdv as usize]);
+            }
             AdcSetting::SampleDelay => {
-                format_uint(buf, b"Sdly:", self.adc_settings.sample_delay as u16, 0, None);
-                return;
+                format_uint(
+                    buf,
+                    b"Sdly:",
+                    self.adc_settings.sample_delay as u16,
+                    0,
+                    None,
+                );
             }
             AdcSetting::SampleLength => {
-                format_uint(buf, b"Slen:", self.adc_settings.sample_length as u16, 0, None);
-                return;
+                format_uint(
+                    buf,
+                    b"Slen:",
+                    self.adc_settings.sample_length as u16,
+                    0,
+                    None,
+                );
             }
-        });
+        }
     }
 
     fn format_reading(&mut self, raw: u16, buf: &mut [u8; NUM_CHARS]) {
@@ -273,7 +301,10 @@ impl Sensors {
                 AdcReading::Temp => {
                     let mut temp_settings = adc_settings;
                     temp_settings.ref_voltage = ReferenceVoltage::VRef1_1V;
-                    (temp_settings, avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE)
+                    (
+                        temp_settings,
+                        avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::TEMPSENSE,
+                    )
                 }
                 AdcReading::Vext => (
                     self.adc_settings,
