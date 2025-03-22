@@ -8,7 +8,10 @@ pub struct Menu {
 
 impl Menu {
     pub fn new_with_settings(settings: &SavedSettings) -> Self {
-        let saved_index = settings.read_setting_byte(Setting::LastMode) % NUM_MODES as u8;
+        let mut saved_index = settings.read_setting_byte(Setting::LastMode);
+        if saved_index >= NUM_MODES {
+            saved_index = 1;
+        }
 
         Menu {
             index: saved_index,
