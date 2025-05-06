@@ -1,14 +1,14 @@
 use crate::{Context, Display, Event, Setting, SavedSettings};
-use super::{names, Mode, NUM_MODES};
+use super::{Mode, MODE_NAMES, NUM_MODES};
 
 pub struct Menu {
-    index: u8,
+    index: usize,
     last_update: u16,
 }
 
 impl Menu {
     pub fn new_with_settings(settings: &SavedSettings) -> Self {
-        let mut saved_index = settings.read_setting_byte(Setting::LastMode);
+        let mut saved_index = settings.read_setting_byte(Setting::LastMode) as usize;
         if saved_index >= NUM_MODES {
             saved_index = 1;
         }
@@ -51,7 +51,7 @@ impl Mode for Menu {
         }
 
         if update {
-            let menu_name = names(self.index);
+            let menu_name = MODE_NAMES[self.index];
             display.print_ascii_bytes(menu_name).unwrap();
             self.last_update = context.menu_counter;
         }
