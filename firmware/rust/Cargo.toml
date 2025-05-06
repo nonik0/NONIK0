@@ -10,8 +10,17 @@ name = "NONIK0"
 test = false
 bench = false
 
+[features]
+default = []
+no_nametag = []
+no_random = []
+no_sensors = []
+no_settings = []
+no_traffic = []
+no_tunnel = []
+no_vibes = []
+
 [dependencies]
-#avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["attiny1604", "rt"] } # built locally with attiny1604 support
 embedded-hal = "1.0"
 heapless = "0.8.0"
 nb = "1.1.0"
@@ -22,7 +31,7 @@ ufmt = "0.2.0"
 
 [dependencies.avr-device]
 git = "https://github.com/Rahix/avr-device"
-branch = "main"
+branch = "main" # revert when attiny1604 is released
 features = ["attiny1604", "rt"]
 
 [dependencies.avrxmega-hal]
