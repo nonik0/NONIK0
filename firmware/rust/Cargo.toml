@@ -12,6 +12,7 @@ bench = false
 
 [features]
 default = []
+tone = []
 no_nametag = []
 no_random = []
 no_sensors = []
@@ -19,6 +20,7 @@ no_settings = []
 no_traffic = []
 no_tunnel = []
 no_vibes = []
+debug_panic = []
 
 [dependencies]
 embedded-hal = "1.0"

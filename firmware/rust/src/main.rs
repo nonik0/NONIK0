@@ -6,10 +6,13 @@
 
 mod input;
 mod modes;
-//mod panic;
+#[cfg(feature = "debug_panic")]
+mod panic;
+#[cfg(not(feature = "debug_panic"))]
 use panic_halt as _;
 mod random;
 mod saved_settings;
+#[cfg(feature = "tone")]
 mod tone;
 
 use avrxmega_hal::eeprom::Eeprom;
@@ -64,6 +67,7 @@ fn main() -> ! {
     let eeprom = Eeprom::new(dp.NVMCTRL);
     let settings = saved_settings::SavedSettings::new(eeprom);
 
+    #[cfg(feature = "tone")]
     let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
 
     let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
@@ -91,10 +95,12 @@ fn main() -> ! {
                     context.to_menu();
                 }
             }
+            #[cfg(feature = "tone")]
             // start tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
                 buzzer.tone(4000, 0);
             }
+            #[cfg(feature = "tone")]
             // stop tone on button release
             Some(Event::LeftReleased)
             | Some(Event::RightReleased)
