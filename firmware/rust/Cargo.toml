@@ -11,7 +11,7 @@ test = false
 bench = false
 
 [dependencies]
-avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["attiny1604", "rt"] } # built locally with attiny1604 support
+#avr-device = { path = "G:\\rust\\avr\\avr-device", features = ["attiny1604", "rt"] } # built locally with attiny1604 support
 embedded-hal = "1.0"
 heapless = "0.8.0"
 nb = "1.1.0"
@@ -20,21 +20,20 @@ random-trait = "0.1.1"
 static_cell = { version = "2.1.0", features = ["nightly"] }
 ufmt = "0.2.0"
 
+[dependencies.avr-device]
+git = "https://github.com/Rahix/avr-device"
+branch = "main"
+features = ["attiny1604", "rt"]
+
 [dependencies.avrxmega-hal]
-path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
 #git = "https://github.com/nonik0/avr-hal"
 #branch = "attiny204-804-1604"
+path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
 features = ["attiny1604"]
 
 [dependencies.hcms-29xx]
 git = "https://github.com/nonik0/hcms-29xx"
 branch = "main"
-
-# The latest releases of `proc-macro2` do not support the rust toolchain that
-# we use.  Thus, we must fix this dependency to an older version where our
-# toolchain is still supported.  See https://github.com/Rahix/avr-hal/issues/537
-[build-dependencies.proc-macro2]
-version = "=1.0.79"
 
 # Cargo profile settings quick reference:
 # codegen-units = [1-N] // Higher = faster compile, lower = better optimizations
