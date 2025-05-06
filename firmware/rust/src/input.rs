@@ -1,7 +1,7 @@
 use embedded_hal::digital::InputPin;
 
 const PRESS_CYCLES: u8 = 1;
-const HOLD_CYCLES: u8 = 10;
+const HOLD_CYCLES: u8 = 20;
 const DEBOUNCE_CYCLES: u8 = 3;
 
 pub enum InputEvent {

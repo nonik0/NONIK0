@@ -1,45 +1,6 @@
 use super::Mode;
 use crate::{Adc0, Context, Display, Event, SavedSettings, Setting, Sigrow, Vref, NUM_CHARS};
 
-// Arrays for indexed string lookup
-const RESOLUTION_STRINGS: [&[u8]; 2] = [b"Res: 10b", b"Res:  8b"];
-const SAMPLE_NUMBER_STRINGS: [&[u8]; 7] = [
-    b"Snum:  1",
-    b"Snum:  2",
-    b"Snum:  4",
-    b"Snum:  8",
-    b"Snum: 16",
-    b"Snum: 32",
-    b"Snum: 64",
-];
-const SAMP_CAP_STRINGS: [&[u8]; 2] = [b"Scap: no", b"Scap:yes"];
-const REF_VOLTAGE_STRINGS: [&[u8]; 6] = [
-    b"Vr:0.55V",
-    b"Vr: 1.1V",
-    b"Vr: 1.5V",
-    b"Vr: 2.5V",
-    b"Vr:4.34V",
-    b"Vr:  Vdd",
-];
-const CLOCK_DIVIDER_STRINGS: [&[u8]; 8] = [
-    b"Div:   2",
-    b"Div:   4",
-    b"Div:   8",
-    b"Div:  16",
-    b"Div:  32",
-    b"Div:  64",
-    b"Div: 128",
-    b"Div: 256",
-];
-const INIT_DELAY_STRINGS: [&[u8]; 6] = [
-    b"Idly:  0",
-    b"Idly: 16",
-    b"Idly: 32",
-    b"Idly: 64",
-    b"Idly:128",
-    b"Idly:256",
-];
-const ASDV_STRINGS: [&[u8]; 2] = [b"ASDV: no", b"ASDV:yes"];
 const REF_VOLTAGE_VARIANTS: [avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A; 5] = [
     avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_0V55,
     avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A::_1V1,
@@ -78,10 +39,14 @@ const INIT_DELAY_VARIANTS: [avrxmega_hal::pac::adc0::ctrld::INITDLY_A; 6] = [
     avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY128,
     avrxmega_hal::pac::adc0::ctrld::INITDLY_A::DLY256,
 ];
-
-// Arrays for indexed lookup
-const SAMPLE_NUMBER_DIVISORS: [u16; 7] = [1, 2, 4, 8, 16, 32, 64];
 const VREF_E5_VALUES: [u32; 6] = [55000, 110000, 150000, 250000, 434000, 360000];
+const RESOLUTION_VALUES: [u16; 2] = [10, 8]; // 2^10 - 1, 2^8 - 1
+const SAMPLE_NUMBER_DIVISORS: [u16; 7] = [1, 2, 4, 8, 16, 32, 64];
+const CLOCK_DIVIDER_VALUES: [u16; 8] = [2, 4, 8, 16, 32, 64, 128, 256];
+const INIT_DELAY_VALUES: [u16; 6] = [0, 16, 32, 64, 128, 256];
+
+const REF_VOLTAGE_STRINGS: [&[u8]; 6] = [b"0.55V", b"1.1V", b"1.5V", b"2.5V", b"4.34V", b"Vdd"];
+const BOOL_STRINGS: [&[u8]; 2] = [b" no", b"yes"];
 
 #[derive(Clone, Copy)]
 enum AdcReading {
@@ -135,6 +100,7 @@ pub struct Sensors {
     cur_setting: AdcSetting,
     settings_active: bool,
     last_update: u16,
+    last_reading: u16,
 
     adc_settings: AdcSettings,
     adc0: Adc0,
@@ -151,11 +117,11 @@ impl Sensors {
     const DECIMAL_PRECISION: u16 = 2; // X.YY
     const ADC_SETTINGS: AdcSettings = AdcSettings {
         resolution: Resolution::_10bit,
-        sample_number: SampleNumber::Acc32,
+        sample_number: SampleNumber::Acc64,
         samp_cap: true,
         ref_voltage: ReferenceVoltage::VRef2_5V,
         clock_divider: ClockDivider::Factor256,
-        init_delay: DelayCycles::Delay128,
+        init_delay: DelayCycles::Delay256,
         asdv: false,
         sample_delay: 10,
         sample_length: 10,
@@ -179,6 +145,7 @@ impl Sensors {
             cur_setting: AdcSetting::Resolution,
             settings_active: false,
             last_update: 0,
+            last_reading: 0,
 
             adc_settings: Self::ADC_SETTINGS,
             adc0,
@@ -217,49 +184,63 @@ impl Sensors {
 
     fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
         match self.cur_setting {
-            AdcSetting::Resolution => {
-                buf.copy_from_slice(RESOLUTION_STRINGS[self.adc_settings.resolution as usize]);
-            }
-            AdcSetting::SampleNumber => {
-                buf.copy_from_slice(
-                    SAMPLE_NUMBER_STRINGS[self.adc_settings.sample_number as usize],
-                );
-            }
-            AdcSetting::SampCap => {
-                buf.copy_from_slice(SAMP_CAP_STRINGS[self.adc_settings.samp_cap as usize]);
-            }
-            AdcSetting::RefVoltage => {
-                buf.copy_from_slice(REF_VOLTAGE_STRINGS[self.adc_settings.ref_voltage as usize]);
-            }
-            AdcSetting::Prescaler => {
-                buf.copy_from_slice(
-                    CLOCK_DIVIDER_STRINGS[self.adc_settings.clock_divider as usize],
-                );
-            }
-            AdcSetting::InitDelay => {
-                buf.copy_from_slice(INIT_DELAY_STRINGS[self.adc_settings.init_delay as usize]);
-            }
-            AdcSetting::SetAsdv => {
-                buf.copy_from_slice(ASDV_STRINGS[self.adc_settings.asdv as usize]);
-            }
-            AdcSetting::SampleDelay => {
-                format_uint(
-                    buf,
-                    b"Sdly:",
-                    self.adc_settings.sample_delay as u16,
-                    0,
-                    None,
-                );
-            }
-            AdcSetting::SampleLength => {
-                format_uint(
-                    buf,
-                    b"Slen:",
-                    self.adc_settings.sample_length as u16,
-                    0,
-                    None,
-                );
-            }
+            AdcSetting::Resolution => format_uint(
+                buf,
+                b"Res:",
+                RESOLUTION_VALUES[self.adc_settings.resolution as usize],
+                0,
+                Some(b"b"),
+            ),
+            AdcSetting::SampleNumber => format_uint(
+                buf,
+                b"Snum:",
+                SAMPLE_NUMBER_DIVISORS[self.adc_settings.sample_number as usize],
+                0,
+                None,
+            ),
+            AdcSetting::SampCap => format_buf(
+                buf,
+                b"Scap:",
+                BOOL_STRINGS[self.adc_settings.samp_cap as usize],
+            ),
+            AdcSetting::RefVoltage => format_buf(
+                buf,
+                b"Vr:",
+                REF_VOLTAGE_STRINGS[self.adc_settings.ref_voltage as usize],
+            ),
+            AdcSetting::Prescaler => format_uint(
+                buf,
+                b"Div:",
+                CLOCK_DIVIDER_VALUES[self.adc_settings.clock_divider as usize],
+                0,
+                None,
+            ),
+            AdcSetting::InitDelay => format_uint(
+                buf,
+                b"Idly:",
+                INIT_DELAY_VALUES[self.adc_settings.init_delay as usize],
+                0,
+                None,
+            ),
+            AdcSetting::SetAsdv => format_buf(
+                buf,
+                b"Asdv:",
+                BOOL_STRINGS[self.adc_settings.asdv as usize],
+            ),
+            AdcSetting::SampleDelay => format_uint(
+                buf,
+                b"Sdly:",
+                self.adc_settings.sample_delay as u16,
+                0,
+                None,
+            ),
+            AdcSetting::SampleLength => format_uint(
+                buf,
+                b"Slen:",
+                self.adc_settings.sample_length as u16,
+                0,
+                None,
+            ),
         }
     }
 
@@ -402,7 +383,7 @@ impl Sensors {
             .write(|w| w.samplen().set(settings.sample_length));
     }
 
-    fn decrement_setting(&mut self) -> bool {
+    fn decrement_cur_setting(&mut self) {
         match self.cur_setting {
             AdcSetting::Resolution => {
                 self.adc_settings.resolution = self.adc_settings.resolution.prev();
@@ -432,11 +413,9 @@ impl Sensors {
                 self.adc_settings.sample_length = self.adc_settings.sample_length.saturating_sub(1);
             }
         };
-
-        true
     }
 
-    fn increment_setting(&mut self) -> bool {
+    fn increment_cur_setting(&mut self) {
         match self.cur_setting {
             AdcSetting::Resolution => {
                 self.adc_settings.resolution = self.adc_settings.resolution.next();
@@ -466,8 +445,22 @@ impl Sensors {
                 self.adc_settings.sample_length = (self.adc_settings.sample_length + 1).min(31);
             }
         };
+    }
 
-        true
+    fn toggle_reading_format(&mut self) {
+        match self.cur_reading {
+            AdcReading::Temp => {
+                if !self.show_raw && !self.show_tempf {
+                    self.show_tempf = true;
+                } else if !self.show_raw && self.show_tempf {
+                    self.show_tempf = false;
+                    self.show_raw = true;
+                } else {
+                    self.show_raw = false;
+                }
+            }
+            _ => self.show_raw = !self.show_raw,
+        }
     }
 }
 
@@ -478,7 +471,7 @@ impl Mode for Sensors {
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
-                    // exit setting if active, or exit mode if not
+                    // exit from settings to readings if active, or exit mode if readings active
                     if self.settings_active {
                         self.settings_active = false;
                         self.util_init = false; // reapply adc settings
@@ -487,6 +480,7 @@ impl Mode for Sensors {
                         // disable ADC when leaving utils mode
                         self.settings_active = false;
                         self.adc0.ctrla().write(|w| w.enable().clear_bit());
+                        self.util_init = false;
                         context
                             .settings
                             .save_setting_byte(Setting::SensorPage, self.cur_reading as u8);
@@ -505,42 +499,32 @@ impl Mode for Sensors {
                 }
                 Event::LeftReleased => {
                     if self.settings_active {
-                        update = self.decrement_setting();
+                        self.decrement_cur_setting();
                     } else {
-                        update = true;
-                        match self.cur_reading {
-                            AdcReading::Temp => {
-                                if !self.show_raw && !self.show_tempf {
-                                    self.show_tempf = true;
-                                } else if !self.show_raw && self.show_tempf {
-                                    self.show_tempf = false;
-                                    self.show_raw = true;
-                                } else {
-                                    self.show_raw = false;
-                                }
-                            }
-                            _ => self.show_raw = !self.show_raw,
-                        }
+                        self.toggle_reading_format();
                     }
+                    update = true;
                 }
                 Event::RightReleased => {
                     if self.settings_active {
-                        update = self.increment_setting();
+                        self.increment_cur_setting();
                     } else {
                         self.cur_reading = self.cur_reading.next();
                         self.util_init = false;
                     }
+                    update = true;
                 }
                 _ => {}
             }
         }
 
         // check for new ADC reading
-        let mut reading = 0;
         if !update && !self.settings_active {
             if let Some(raw) = self.read_raw(self.cur_reading, self.adc_settings) {
-                update = true;
-                reading = raw;
+                if raw != self.last_reading {
+                    self.last_reading = raw;
+                    update = true;
+                }
             }
         }
 
@@ -549,13 +533,10 @@ impl Mode for Sensors {
             if self.settings_active {
                 self.format_setting(&mut buf);
             } else {
-                self.format_reading(reading, &mut buf);
-            };
-
-            if buf != self.display_buf {
-                self.display_buf.copy_from_slice(&buf);
-                display.print_ascii_bytes(&buf).unwrap();
+                self.format_reading(self.last_reading, &mut buf);
             }
+
+            display.print_ascii_bytes(&buf).unwrap();
         }
     }
 }
@@ -610,6 +591,22 @@ fn format_uint(
     }
 }
 
+fn format_buf(buf: &mut [u8], left: &[u8], right: &[u8]) {
+    let num_chars = buf.len();
+    let left_len = left.len();
+    let right_len = right.len();
+
+    if left_len + right_len > num_chars {
+        panic!("Left and right strings are too long to fit in the buffer");
+    }
+
+    buf[..left_len].copy_from_slice(left);
+    buf[num_chars - right_len..].copy_from_slice(right);
+    for i in left_len..num_chars - right_len {
+        buf[i] = b' ';
+    }
+}
+
 //
 // ADC stuff, eventually move to avr_hal impl
 //
@@ -654,7 +651,7 @@ impl Default for AdcSettings {
 
 #[derive(Clone, Copy)]
 pub enum Resolution {
-    _10bit,
+    _10bit = 0,
     _8bit,
 }
 
