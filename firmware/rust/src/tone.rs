@@ -33,24 +33,24 @@ impl ToneState {
         self.cycles_per_toggle = 1 << division_factor;
         self.cycles_left = self.cycles_per_toggle;
 
-        self.timer.ctrla.write(|w| match clock_divider {
+        self.timer.ctrla().write(|w| match clock_divider {
             1 => w.clksel().clkdiv1(),
             _ => w.clksel().clkdiv2(),
         });
-        self.timer.ccmp.write(|w| w.bits(compare_value as u16));
-        self.timer.ctrlb.write(|w| w.cntmode().int());
-        self.timer.cnt.write(|w| w.bits(0));
-        self.timer.intctrl.write(|w| w.capt().set_bit());
-        self.timer.ctrla.modify(|_, w| w.enable().set_bit());
+        self.timer.ccmp().write(|w| w.set(compare_value as u16));
+        self.timer.ctrlb().write(|w| w.cntmode().int());
+        self.timer.cnt().write(|w| w.set(0));
+        self.timer.intctrl().write(|w| w.capt().set_bit());
+        self.timer.ctrla().modify(|_, w| w.enable().set_bit());
     }
 
     pub fn disable(&mut self) {
         self.output_pin.set_low();
         self.toggles_left = None;
 
-        self.timer.ctrla.modify(|_, w| w.enable().clear_bit());
-        self.timer.intctrl.write(|w| w.capt().clear_bit());
-        self.timer.intflags.write(|w| w.capt().set_bit());
+        self.timer.ctrla().modify(|_, w| w.enable().clear_bit());
+        self.timer.intctrl().write(|w| w.capt().clear_bit());
+        self.timer.intflags().write(|w| w.capt().set_bit());
     }
 
     pub fn int_tick(&mut self) {
@@ -69,7 +69,7 @@ impl ToneState {
             }
         }
 
-        self.timer.intflags.write(|w| w.capt().set_bit());
+        self.timer.intflags().write(|w| w.capt().set_bit());
     }
 }
 
@@ -159,7 +159,6 @@ impl Tone {
 }
 
 #[avr_device::interrupt(attiny1604)]
-#[allow(non_snake_case)]
 fn TCB0_INT() {
     avr_device::interrupt::free(|cs| {
         let mut state_opt = TONE_STATE.borrow(cs).borrow_mut();

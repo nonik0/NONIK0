@@ -292,7 +292,7 @@ impl Sensors {
     }
 
     fn read_raw(&mut self, reading: AdcReading, adc_settings: AdcSettings) -> Option<u16> {
-        if self.adc0.command.read().stconv().bit_is_set() {
+        if self.adc0.command().read().stconv().bit_is_set() {
             return None; // Measurement ongoing
         }
 
@@ -320,16 +320,16 @@ impl Sensors {
                 ),
             };
             self.apply_adc_settings(adc_settings);
-            self.adc0.muxpos.write(|w| w.muxpos().variant(channel));
-            self.adc0.command.write(|w| w.stconv().set_bit());
+            self.adc0.muxpos().write(|w| w.muxpos().variant(channel));
+            self.adc0.command().write(|w| w.stconv().set_bit());
             self.util_init = true;
             return None;
         }
 
         // Measurement complete, get result
         let acc_divisor = SAMPLE_NUMBER_DIVISORS[self.adc_settings.sample_number as usize];
-        let raw = self.adc0.res.read().bits() / acc_divisor;
-        self.adc0.command.write(|w| w.stconv().set_bit());
+        let raw = self.adc0.res().read().bits() / acc_divisor;
+        self.adc0.command().write(|w| w.stconv().set_bit());
         Some(raw)
     }
 
@@ -346,8 +346,8 @@ impl Sensors {
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
-        let sigrow_offset = self.sigrow.tempsense1.read().bits() as i8;
-        let sigrow_gain = self.sigrow.tempsense0.read().bits() as u8;
+        let sigrow_offset = self.sigrow.tempsense1().read().bits() as i8;
+        let sigrow_gain = self.sigrow.tempsense0().read().bits() as u8;
 
         let mut temp: u32 = ((raw as i32) - (sigrow_offset as i32)) as u32;
         temp = (temp as i32 * sigrow_gain as i32) as u32;
@@ -364,23 +364,23 @@ impl Sensors {
     }
 
     fn apply_adc_settings(&mut self, settings: AdcSettings) {
-        self.vref.ctrla.modify(|_, w| {
+        self.vref.ctrla().modify(|_, w| {
             w.adc0refsel()
                 .variant(REF_VOLTAGE_VARIANTS[settings.ref_voltage as usize])
         });
 
-        self.adc0.ctrla.write(|w| {
+        self.adc0.ctrla().write(|w| {
             w.ressel()
                 .variant(RESOLUTION_VARIANTS[settings.resolution as usize]);
             w.enable().set_bit()
         });
 
-        self.adc0.ctrlb.write(|w| {
+        self.adc0.ctrlb().write(|w| {
             w.sampnum()
                 .variant(SAMPLE_NUMBER_VARIANTS[settings.sample_number as usize])
         });
 
-        self.adc0.ctrlc.write(|w| {
+        self.adc0.ctrlc().write(|w| {
             w.sampcap().bit(settings.samp_cap);
             w.refsel().variant(match settings.ref_voltage {
                 ReferenceVoltage::Vdd => avrxmega_hal::pac::adc0::ctrlc::REFSEL_A::VDDREF,
@@ -390,16 +390,16 @@ impl Sensors {
                 .variant(CLOCK_DIVIDER_VARIANTS[settings.clock_divider as usize])
         });
 
-        self.adc0.ctrld.write(|w| {
+        self.adc0.ctrld().write(|w| {
             w.initdly()
                 .variant(INIT_DELAY_VARIANTS[settings.init_delay as usize]);
             w.asdv().bit(settings.asdv);
-            w.sampdly().bits(settings.sample_delay)
+            w.sampdly().set(settings.sample_delay)
         });
 
         self.adc0
-            .sampctrl
-            .write(|w| w.samplen().bits(settings.sample_length));
+            .sampctrl()
+            .write(|w| w.samplen().set(settings.sample_length));
     }
 
     fn decrement_setting(&mut self) -> bool {
@@ -486,7 +486,7 @@ impl Mode for Sensors {
                     } else {
                         // disable ADC when leaving utils mode
                         self.settings_active = false;
-                        self.adc0.ctrla.write(|w| w.enable().clear_bit());
+                        self.adc0.ctrla().write(|w| w.enable().clear_bit());
                         context
                             .settings
                             .save_setting_byte(Setting::SensorPage, self.cur_reading as u8);
