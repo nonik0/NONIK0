@@ -37,9 +37,8 @@ branch = "main" # revert when attiny1604 is released
 features = ["attiny1604", "rt"]
 
 [dependencies.avrxmega-hal]
-#git = "https://github.com/nonik0/avr-hal"
-#branch = "attiny204-804-1604"
-path = "G:\\rust\\avr\\avr-hal\\mcu\\avrxmega-hal"
+git = "https://github.com/nonik0/avr-hal"
+branch = "avr-device-new"
 features = ["attiny1604"]
 
 [dependencies.hcms-29xx]

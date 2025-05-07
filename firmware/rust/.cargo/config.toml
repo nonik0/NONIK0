@@ -1,5 +1,6 @@
 [build]
-target = "avr-none"
+#target = "avr-none"
+target = "avr-specs/avr-attiny1604.json"
 rustflags = ["-C", "target-cpu=attiny1604"]
 
 [target.'cfg(target_arch = "avr")']
