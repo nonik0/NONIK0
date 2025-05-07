@@ -162,6 +162,7 @@ dependencies = [
 [[package]]
 name = "avr-hal-generic"
 version = "0.1.0"
+source = "git+https://github.com/nonik0/avr-hal?branch=avr-device-new#c969dff4a15bc7eb5e112d842d18458a8e462183"
 dependencies = [
  "avr-device",
  "embedded-hal 0.2.7",
@@ -177,6 +178,7 @@ dependencies = [
 [[package]]
 name = "avrxmega-hal"
 version = "0.1.0"
+source = "git+https://github.com/nonik0/avr-hal?branch=avr-device-new#c969dff4a15bc7eb5e112d842d18458a8e462183"
 dependencies = [
  "avr-device",
  "avr-hal-generic",
