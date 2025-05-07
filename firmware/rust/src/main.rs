@@ -4,6 +4,7 @@
 #![feature(asm_experimental_arch)]
 #![feature(type_alias_impl_trait)]
 
+mod format;
 mod input;
 mod modes;
 #[cfg(feature = "debug_panic")]
@@ -15,7 +16,7 @@ mod saved_settings;
 #[cfg(feature = "tone")]
 mod tone;
 
-use avrxmega_hal::eeprom::Eeprom;
+//use avrxmega_hal::eeprom::Eeprom;
 use avrxmega_hal::port::{mode::Output, *};
 use embedded_hal::delay::DelayNs;
 use modes::*;
@@ -64,13 +65,15 @@ fn main() -> ! {
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
 
-    let eeprom = Eeprom::new(dp.NVMCTRL);
-    let settings = saved_settings::SavedSettings::new(eeprom);
+    //let eeprom = Eeprom::new(dp.NVMCTRL);
+    //let settings = saved_settings::SavedSettings::new(eeprom);
+    //let settings = saved_settings::SavedSettings::new(dp.NVMCTRL, dp.CPU);
+    let settings = saved_settings::SavedSettings::new(dp.NVMCTRL);
 
     #[cfg(feature = "tone")]
     let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
 
-    let mut display = hcms_29xx::Hcms29xx::<{ crate::NUM_CHARS }, _, _, _, _, _, _, _>::new(
+    let mut display = Display::new(
         pins.pa6.into_output(),
         pins.pa4.into_output(),
         pins.pa3.into_output(),
@@ -83,8 +86,10 @@ fn main() -> ! {
 
     display.begin().unwrap();
     display.display_unblank().unwrap();
+
     let mut context = Context::new(settings);
     let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context, &mut display);
+
     loop {
         let event = buttons.update();
 
