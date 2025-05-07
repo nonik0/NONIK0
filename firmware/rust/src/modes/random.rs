@@ -139,7 +139,6 @@ impl Mode for Random {
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
-                    context.settings.save_setting_byte(Setting::RandomPage, self.cur_page as u8);
                     context.to_menu();
                     return;
                 }
@@ -150,6 +149,7 @@ impl Mode for Random {
                         Page::EightBall => Page::Cuisine,
                         Page::Cuisine => Page::IntegerBase10,
                     };
+                    context.settings.save_setting_byte(Setting::RandomPage, self.cur_page as u8);
                     update = true;
                 }
                 Event::LeftPressed | Event::RightPressed => {
