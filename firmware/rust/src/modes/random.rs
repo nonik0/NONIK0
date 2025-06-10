@@ -107,15 +107,11 @@ impl Random {
     }
 
     fn format_eight_ball(buf: &mut [u8], index: u8) {
-        buf.copy_from_slice(
-            EIGHT_BALL_RESPONSES[index as usize % EIGHT_BALL_RESPONSES.len()],
-        );
+        buf.copy_from_slice(EIGHT_BALL_RESPONSES[index as usize % EIGHT_BALL_RESPONSES.len()]);
     }
 
     fn format_cuisine(buf: &mut [u8], index: u8) {
-        buf.copy_from_slice(
-            CUISINE_RESPONSES[index as usize % CUISINE_RESPONSES.len()],
-        );
+        buf.copy_from_slice(CUISINE_RESPONSES[index as usize % CUISINE_RESPONSES.len()]);
     }
 
     fn roll_d6_message(value: u32, display: &mut Display) {
@@ -150,7 +146,9 @@ impl ModeHandler for Random {
                         Page::EightBall => Page::Cuisine,
                         Page::Cuisine => Page::IntegerBase10,
                     };
-                    context.settings.save_setting_byte(Setting::RandomPage, self.cur_page as u8);
+                    context
+                        .settings
+                        .save_setting_byte(Setting::RandomPage, self.cur_page as u8);
                     update = true;
                 }
                 Event::LeftPressed | Event::RightPressed => {
