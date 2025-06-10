@@ -1,4 +1,4 @@
-use super::Mode;
+use super::ModeHandler;
 use crate::{Context, Display, Event, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS};
 use hcms_29xx::CHAR_WIDTH;
 use random_trait::Random as _;
@@ -132,7 +132,8 @@ impl Random {
     }
 }
 
-impl Mode for Random {
+impl ModeHandler for Random {
+    #[inline(never)]
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 

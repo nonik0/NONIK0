@@ -1,5 +1,5 @@
 use crate::{Context, Display, Event, Setting, SavedSettings};
-use super::{Mode, MODE_NAMES, NUM_MODES};
+use super::{ModeHandler, MODE_NAMES, NUM_MODES};
 
 pub struct Menu {
     index: usize,
@@ -20,7 +20,8 @@ impl Menu {
     }
 }
 
-impl Mode for Menu {
+impl ModeHandler for Menu {
+    #[inline(never)]
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 

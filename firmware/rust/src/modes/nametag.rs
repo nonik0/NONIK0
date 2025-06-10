@@ -1,4 +1,4 @@
-use super::Mode;
+use super::ModeHandler;
 use crate::{Context, Display, Event, SavedSettings, Setting, NUM_CHARS};
 
 const BLINK_PERIOD_ON: u8 = 1;
@@ -75,7 +75,8 @@ impl Nametag {
     }
 }
 
-impl Mode for Nametag {
+impl ModeHandler for Nametag {
+    #[inline(never)]
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 

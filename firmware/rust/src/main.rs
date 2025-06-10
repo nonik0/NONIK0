@@ -85,7 +85,18 @@ fn main() -> ! {
     display.display_unblank().unwrap();
 
     let mut context = Context::new(settings);
-    let modes = modes::take(dp.ADC0, dp.SIGROW, dp.VREF, &context, &mut display);
+
+    // // seed rand
+    // let mut sensors = Sensors::new_with_settings(&context.settings, &dp.ADC0, &dp.SIGROW, &dp.VREF);
+    // sensors.seed_rand();
+
+    // apply saved display settings
+    let settings = Settings::new_with_settings(&context.settings);
+    settings.apply(&mut display);
+
+    // initialize default/saved mode
+    let mut mode = Mode::from_context(&context);
+    let mut mode_index = context.mode_index();
     loop {
         let event = buttons.update();
 
@@ -97,22 +108,25 @@ fn main() -> ! {
                 }
             }
             #[cfg(feature = "tone")]
-            // start tone on button press
+            // higher/shorter tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
-                buzzer.tone(4000, 0);
+                buzzer.tone(5000, 5);
             }
             #[cfg(feature = "tone")]
-            // stop tone on button release
-            Some(Event::LeftReleased)
-            | Some(Event::RightReleased)
-            | Some(Event::LeftHeldReleased)
-            | Some(Event::RightHeldReleased) => {
-                buzzer.no_tone();
+            // lower/longer tone on button held press
+            Some(Event::LeftHeld) | Some(Event::RightHeld) => {
+                buzzer.tone(4000, 10);
             }
             _ => {}
         }
 
-        modes[context.mode()].update(&event, &mut context, &mut display);
+        // change mode when requested
+        if mode_index != context.mode_index() {
+            mode_index = context.mode_index();
+            mode = Mode::from_context(&context);
+        }
+
+        mode.update(&event, &mut context, &mut display);
 
         delay.delay_ms(BASE_DELAY_MS);
     }

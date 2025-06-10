@@ -1,4 +1,4 @@
-use super::Mode;
+use super::ModeHandler;
 use crate::{Adc0, Context, Display, Event, format::*, SavedSettings, Setting, Sigrow, Vref, NUM_CHARS};
 
 const REF_VOLTAGE_VARIANTS: [avrxmega_hal::pac::vref::ctrla::ADC0REFSEL_A; 5] = [
@@ -128,9 +128,9 @@ impl Sensors {
 
     pub fn new_with_settings(
         settings: &SavedSettings,
-        adc0: Adc0,
-        sigrow: Sigrow,
-        vref: Vref,
+        //adc0: Adc0,
+        // sigrow: Sigrow,
+        // vref: Vref,
     ) -> Self {
         let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
             1 => AdcReading::Vext,
@@ -138,6 +138,7 @@ impl Sensors {
             3 => AdcReading::Gnd,
             _ => AdcReading::Temp,
         };
+        let hack = avrxmega_hal::Peripherals::take().unwrap();
 
         Sensors {
             cur_reading: saved_reading,
@@ -147,9 +148,9 @@ impl Sensors {
             last_reading: 0,
 
             adc_settings: Self::ADC_SETTINGS,
-            adc0,
-            sigrow,
-            vref,
+            adc0: hack.ADC0,
+            sigrow: hack.SIGROW,
+            vref: hack.VREF,
 
             util_init: false,
             show_raw: false,
@@ -463,7 +464,8 @@ impl Sensors {
     }
 }
 
-impl Mode for Sensors {
+impl ModeHandler for Sensors {
+    #[inline(never)]
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 

@@ -24,6 +24,7 @@ debug_panic = []
 
 [dependencies]
 embedded-hal = "1.0"
+enum_dispatch = "0.3.13"
 heapless = "0.8.0"
 nb = "1.1.0"
 panic-halt = "1.0.0"
@@ -67,5 +68,5 @@ codegen-units = 1
 debug = 0
 incremental = false
 lto = true
-opt-level = "s"
+opt-level = "z"
 panic = "abort"

@@ -1,4 +1,4 @@
-use super::Mode;
+use super::ModeHandler;
 use crate::{Context, Display, DisplayPeakCurrent, Event, SavedSettings, Setting as EepromSetting};
 
 const BRIGHTNESS_DEFAULT: u8 = 12;
@@ -76,7 +76,8 @@ impl Settings {
     }
 }
 
-impl Mode for Settings {
+impl ModeHandler for Settings {
+    #[inline(never)]
     fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
         let mut update = context.needs_update(&mut self.last_update);
 
