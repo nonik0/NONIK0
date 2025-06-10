@@ -6,6 +6,21 @@ mod settings;
 use adc::*;
 use settings::*;
 
+// TODO: refactor ADC to separate module/struct and remove this
+static mut SENSOR_PERIPHERALS: Option<SensorPeripherals> = None;
+struct SensorPeripherals {
+    adc0: Adc0,
+    sigrow: Sigrow,
+    vref: Vref,
+}
+impl SensorPeripherals {
+    pub fn get_mut() -> &'static mut SensorPeripherals {
+        #[allow(static_mut_refs)]
+        unsafe { SENSOR_PERIPHERALS.as_mut().unwrap() }
+    }
+}
+// TODO remove above!
+
 pub struct Sensors {
     cur_reading: SensorReading,
     cur_setting: SensorSetting,
@@ -14,10 +29,6 @@ pub struct Sensors {
     last_reading: u16,
 
     adc_settings: AdcSettings,
-    adc0: Adc0,
-    sigrow: Sigrow,
-    vref: Vref,
-
     util_init: bool,
     show_raw: bool,
     show_tempf: bool,
@@ -39,9 +50,6 @@ impl Sensors {
 
     pub fn new_with_settings(
         settings: &SavedSettings,
-        //adc0: Adc0,
-        // sigrow: Sigrow,
-        // vref: Vref,
     ) -> Self {
         let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
             1 => SensorReading::Vext,
@@ -49,7 +57,6 @@ impl Sensors {
             3 => SensorReading::Gnd,
             _ => SensorReading::Temp,
         };
-        let hack = avrxmega_hal::Peripherals::take().unwrap();
 
         Sensors {
             cur_reading: saved_reading,
@@ -57,16 +64,16 @@ impl Sensors {
             settings_active: false,
             last_update: 0,
             last_reading: 0,
-
             adc_settings: Self::ADC_SETTINGS,
-            adc0: hack.ADC0,
-            sigrow: hack.SIGROW,
-            vref: hack.VREF,
-
             util_init: false,
             show_raw: false,
             show_tempf: false,
-            //display_buf: [0; NUM_CHARS],
+        }
+    }
+
+    pub fn give_peripherals(adc0: Adc0, sigrow: Sigrow, vref: Vref) {
+        unsafe {
+            SENSOR_PERIPHERALS = Some(SensorPeripherals { adc0, sigrow, vref });
         }
     }
 
@@ -184,7 +191,8 @@ impl Sensors {
     }
 
     fn read_raw(&mut self, reading: SensorReading, adc_settings: AdcSettings) -> Option<u16> {
-        if self.adc0.command().read().stconv().bit_is_set() {
+        let periph = SensorPeripherals::get_mut();
+        if periph.adc0.command().read().stconv().bit_is_set() {
             return None; // Measurement ongoing
         }
 
@@ -211,17 +219,17 @@ impl Sensors {
                     avrxmega_hal::pac::adc0::muxpos::MUXPOS_A::GND,
                 ),
             };
-            self.apply_adc_settings(adc_settings);
-            self.adc0.muxpos().write(|w| w.muxpos().variant(channel));
-            self.adc0.command().write(|w| w.stconv().set_bit());
+            self.apply_adc_settings(periph, adc_settings);
+            periph.adc0.muxpos().write(|w| w.muxpos().variant(channel));
+            periph.adc0.command().write(|w| w.stconv().set_bit());
             self.util_init = true;
             return None;
         }
 
         // Measurement complete, get result
         let acc_divisor = SAMPLE_NUMBER_DIVISORS[self.adc_settings.sample_number as usize];
-        let raw = self.adc0.res().read().bits() / acc_divisor;
-        self.adc0.command().write(|w| w.stconv().set_bit());
+        let raw = periph.adc0.res().read().bits() / acc_divisor;
+        periph.adc0.command().write(|w| w.stconv().set_bit());
         Some(raw)
     }
 
@@ -238,8 +246,9 @@ impl Sensors {
     }
 
     fn temp_from_raw(&mut self, raw: u16) -> u16 {
-        let sigrow_offset = self.sigrow.tempsense1().read().bits() as i8;
-        let sigrow_gain = self.sigrow.tempsense0().read().bits() as u8;
+        let periph = SensorPeripherals::get_mut();
+        let sigrow_offset = periph.sigrow.tempsense1().read().bits() as i8;
+        let sigrow_gain = periph.sigrow.tempsense0().read().bits() as u8;
 
         let mut temp: u32 = ((raw as i32) - (sigrow_offset as i32)) as u32;
         temp = (temp as i32 * sigrow_gain as i32) as u32;
@@ -255,24 +264,24 @@ impl Sensors {
         }
     }
 
-    fn apply_adc_settings(&mut self, settings: AdcSettings) {
-        self.vref.ctrla().modify(|_, w| {
+    fn apply_adc_settings(&self, periph: &mut SensorPeripherals, settings: AdcSettings) {
+        periph.vref.ctrla().modify(|_, w| {
             w.adc0refsel()
                 .variant(REF_VOLTAGE_VARIANTS[settings.ref_voltage as usize])
         });
 
-        self.adc0.ctrla().write(|w| {
+        periph.adc0.ctrla().write(|w| {
             w.ressel()
                 .variant(RESOLUTION_VARIANTS[settings.resolution as usize]);
             w.enable().set_bit()
         });
 
-        self.adc0.ctrlb().write(|w| {
+        periph.adc0.ctrlb().write(|w| {
             w.sampnum()
                 .variant(SAMPLE_NUMBER_VARIANTS[settings.sample_number as usize])
         });
 
-        self.adc0.ctrlc().write(|w| {
+        periph.adc0.ctrlc().write(|w| {
             w.sampcap().bit(settings.samp_cap);
             w.refsel().variant(match settings.ref_voltage {
                 ReferenceVoltage::Vdd => avrxmega_hal::pac::adc0::ctrlc::REFSEL_A::VDDREF,
@@ -282,14 +291,14 @@ impl Sensors {
                 .variant(CLOCK_DIVIDER_VARIANTS[settings.clock_divider as usize])
         });
 
-        self.adc0.ctrld().write(|w| {
+        periph.adc0.ctrld().write(|w| {
             w.initdly()
                 .variant(INIT_DELAY_VARIANTS[settings.init_delay as usize]);
             w.asdv().bit(settings.asdv);
             w.sampdly().set(settings.sample_delay)
         });
 
-        self.adc0
+        periph.adc0
             .sampctrl()
             .write(|w| w.samplen().set(settings.sample_length));
     }
@@ -391,7 +400,7 @@ impl ModeHandler for Sensors {
                     } else {
                         // disable ADC when leaving utils mode
                         self.settings_active = false;
-                        self.adc0.ctrla().write(|w| w.enable().clear_bit());
+                        SensorPeripherals::get_mut().adc0.command().write(|w| w.stconv().set_bit());
                         self.util_init = false;
                         context
                             .settings

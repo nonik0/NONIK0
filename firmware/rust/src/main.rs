@@ -86,9 +86,13 @@ fn main() -> ! {
 
     let mut context = Context::new(settings);
 
-    // // seed rand
-    // let mut sensors = Sensors::new_with_settings(&context.settings, &dp.ADC0, &dp.SIGROW, &dp.VREF);
-    // sensors.seed_rand();
+    // TODO: bit hacky of a way to give sensors access to its peripherals without passing through update()
+    // replace with ADC impl and passing ADC, like Display, to update()
+
+    // seed rand
+    Sensors::give_peripherals(dp.ADC0, dp.SIGROW, dp.VREF);
+    let mut sensors = Sensors::new_with_settings(&context.settings);
+    sensors.seed_rand();
 
     // apply saved display settings
     let settings = Settings::new_with_settings(&context.settings);
