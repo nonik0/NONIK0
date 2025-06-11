@@ -1,5 +1,10 @@
 use super::ModeHandler;
-use crate::{impl_enum_cycle, adc::*, utils::*, Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS};
+use crate::{
+    adc::*,
+    impl_enum_cycle,
+    utils::*,
+    Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS,
+};
 
 pub const RESOLUTION_VALUES: [u16; 2] = [10, 8]; // 2^10 - 1, 2^8 - 1
                                                  //pub const SAMPLE_NUMBER_DIVISORS: [u16; 7] = [1, 2, 4, 8, 16, 32, 64];
@@ -33,7 +38,6 @@ pub struct Sensors {
     last_update: u16,
     last_reading: u16,
 
-    adc_settings: AdcSettings,
     show_raw: bool,
     show_tempf: bool,
 }
@@ -55,39 +59,36 @@ impl Sensors {
             settings_active: false,
             last_update: 0,
             last_reading: 0,
-            adc_settings: AdcSettings::default(), // TODO
             show_raw: false,
             show_tempf: false,
         }
     }
 
-    fn format_setting(&self, buf: &mut [u8; NUM_CHARS]) {
+    fn format_setting(&self, buf: &mut [u8; NUM_CHARS], adc_settings: &AdcSettings) {
         match self.cur_setting {
             SensorSetting::Resolution => format_uint(
                 buf,
                 b"Res:",
-                RESOLUTION_VALUES[self.adc_settings.resolution as usize],
+                RESOLUTION_VALUES[adc_settings.resolution as usize],
                 0,
                 Some(b"b"),
             ),
             SensorSetting::SampleNumber => format_uint(
                 buf,
                 b"Snum:",
-                //[self.adc_settings.sample_number as usize],
-                1 << (self.adc_settings.sample_number as u8),
+                //[adc_settings.sample_number as usize],
+                1 << (adc_settings.sample_number as u8),
                 0,
                 None,
             ),
-            SensorSetting::SampCap => format_buf(
-                buf,
-                b"Scap:",
-                BOOL_STRINGS[self.adc_settings.samp_cap as usize],
-            ),
+            SensorSetting::SampCap => {
+                format_buf(buf, b"Scap:", BOOL_STRINGS[adc_settings.samp_cap as usize])
+            }
             SensorSetting::RefVoltage => format_buf(
                 buf,
                 b"Vr:",
-                if self.adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
-                    INT_REF_VOLTAGE_STRINGS[self.adc_settings.int_ref_voltage as usize]
+                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
+                    INT_REF_VOLTAGE_STRINGS[adc_settings.int_ref_voltage as usize]
                 } else {
                     VDD_REF_VOLTAGE_STRING
                 },
@@ -95,34 +96,26 @@ impl Sensors {
             SensorSetting::Prescaler => format_uint(
                 buf,
                 b"Div:",
-                PRESCALER_VALUES[self.adc_settings.prescaler as usize],
+                PRESCALER_VALUES[adc_settings.prescaler as usize],
                 0,
                 None,
             ),
             SensorSetting::InitDelay => format_uint(
                 buf,
                 b"Idly:",
-                INIT_DELAY_VALUES[self.adc_settings.init_delay as usize],
+                INIT_DELAY_VALUES[adc_settings.init_delay as usize],
                 0,
                 None,
             ),
             SensorSetting::SetAsdv => {
-                format_buf(buf, b"Asdv:", BOOL_STRINGS[self.adc_settings.asdv as usize])
+                format_buf(buf, b"Asdv:", BOOL_STRINGS[adc_settings.asdv as usize])
             }
-            SensorSetting::SampleDelay => format_uint(
-                buf,
-                b"Sdly:",
-                self.adc_settings.sample_delay as u16,
-                0,
-                None,
-            ),
-            SensorSetting::SampleLength => format_uint(
-                buf,
-                b"Slen:",
-                self.adc_settings.sample_length as u16,
-                0,
-                None,
-            ),
+            SensorSetting::SampleDelay => {
+                format_uint(buf, b"Sdly:", adc_settings.sample_delay as u16, 0, None)
+            }
+            SensorSetting::SampleLength => {
+                format_uint(buf, b"Slen:", adc_settings.sample_length as u16, 0, None)
+            }
         }
     }
 
@@ -154,82 +147,81 @@ impl Sensors {
         format_uint(buf, prefix, value, decimals, suffix);
     }
 
-    fn decrement_cur_setting(&mut self) {
+    fn decrement_cur_setting(&mut self, adc_settings: &mut AdcSettings) {
         match self.cur_setting {
             SensorSetting::Resolution => {
-                self.adc_settings.resolution = self.adc_settings.resolution.prev();
+                adc_settings.resolution = adc_settings.resolution.prev();
             }
             SensorSetting::SampleNumber => {
-                self.adc_settings.sample_number = self.adc_settings.sample_number.prev();
+                adc_settings.sample_number = adc_settings.sample_number.prev();
             }
             SensorSetting::SampCap => {
-                self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
+                adc_settings.samp_cap = !adc_settings.samp_cap;
             }
             SensorSetting::RefVoltage => {
                 // decrement to internal reference voltage if at VDD reference voltage
-                if self.adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
-                    // self.adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDD
-                    self.adc_settings.adc_ref_voltage = AdcReferenceVoltage::INTREF;
-                    self.adc_settings.int_ref_voltage = IntReferenceVoltage::_1V5;
+                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
+                    // adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDD
+                    adc_settings.adc_ref_voltage = AdcReferenceVoltage::INTREF;
+                    adc_settings.int_ref_voltage = IntReferenceVoltage::_1V5;
                 } else {
-                    self.adc_settings.int_ref_voltage = self.adc_settings.int_ref_voltage.prev();
+                    adc_settings.int_ref_voltage = adc_settings.int_ref_voltage.prev();
                 }
             }
             SensorSetting::Prescaler => {
-                self.adc_settings.prescaler = self.adc_settings.prescaler.prev();
+                adc_settings.prescaler = adc_settings.prescaler.prev();
             }
             SensorSetting::InitDelay => {
-                self.adc_settings.init_delay = self.adc_settings.init_delay.prev();
+                adc_settings.init_delay = adc_settings.init_delay.prev();
             }
             SensorSetting::SetAsdv => {
-                self.adc_settings.asdv = !self.adc_settings.asdv;
+                adc_settings.asdv = !adc_settings.asdv;
             }
             SensorSetting::SampleDelay => {
-                self.adc_settings.sample_delay = self.adc_settings.sample_delay.saturating_sub(1);
+                adc_settings.sample_delay = adc_settings.sample_delay.saturating_sub(1);
             }
             SensorSetting::SampleLength => {
-                self.adc_settings.sample_length = self.adc_settings.sample_length.saturating_sub(1);
+                adc_settings.sample_length = adc_settings.sample_length.saturating_sub(1);
             }
         };
     }
 
-    fn increment_cur_setting(&mut self) {
+    fn increment_cur_setting(&mut self, adc_settings: &mut AdcSettings) {
         match self.cur_setting {
             SensorSetting::Resolution => {
-                self.adc_settings.resolution = self.adc_settings.resolution.next();
+                adc_settings.resolution = adc_settings.resolution.next();
             }
             SensorSetting::SampleNumber => {
-                self.adc_settings.sample_number = self.adc_settings.sample_number.next();
+                adc_settings.sample_number = adc_settings.sample_number.next();
             }
             SensorSetting::SampCap => {
-                self.adc_settings.samp_cap = !self.adc_settings.samp_cap;
+                adc_settings.samp_cap = !adc_settings.samp_cap;
             }
             SensorSetting::RefVoltage => {
-                if self.adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
+                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
                     // advance to VDD reference voltage if at last internal reference voltage
-                    if self.adc_settings.int_ref_voltage == IntReferenceVoltage::_1V5 {
+                    if adc_settings.int_ref_voltage == IntReferenceVoltage::_1V5 {
                         // 1.5V is the last option, so switch to VDD
-                        self.adc_settings.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
+                        adc_settings.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
                     } else {
-                        self.adc_settings.int_ref_voltage =
-                            self.adc_settings.int_ref_voltage.next();
+                        adc_settings.int_ref_voltage = adc_settings.int_ref_voltage.next();
                     }
                 }
             }
             SensorSetting::Prescaler => {
-                self.adc_settings.prescaler = self.adc_settings.prescaler.next();
+                adc_settings.prescaler = adc_settings.prescaler.next();
             }
             SensorSetting::InitDelay => {
-                self.adc_settings.init_delay = self.adc_settings.init_delay.next();
+                adc_settings.init_delay = adc_settings.init_delay.next();
             }
             SensorSetting::SetAsdv => {
-                self.adc_settings.asdv = !self.adc_settings.asdv;
+                adc_settings.asdv = !adc_settings.asdv;
             }
             SensorSetting::SampleDelay => {
-                self.adc_settings.sample_delay = (self.adc_settings.sample_delay + 1).min(15);
+                adc_settings.sample_delay = (adc_settings.sample_delay + 1).min(15);
             }
             SensorSetting::SampleLength => {
-                self.adc_settings.sample_length = (self.adc_settings.sample_length + 1).min(31);
+                adc_settings.sample_length = (adc_settings.sample_length + 1).min(31);
             }
         };
     }
@@ -267,7 +259,7 @@ impl ModeHandler for Sensors {
                     // in settings: exit to readings and apply settings, in readings: exit to menu
                     if self.settings_active {
                         self.settings_active = false;
-                        peripherals.adc.apply_settings(self.adc_settings);
+                        peripherals.adc.apply_settings();
                         update = true;
                     } else {
                         // disable ADC when leaving utils mode
@@ -283,7 +275,7 @@ impl ModeHandler for Sensors {
                 Event::RightHeld => {
                     // toggle setting or toggle into settings
                     if self.settings_active {
-                        self.cur_setting = self.cur_setting.next();
+                        self.cur_setting = self.cur_setting.next_wrapping();
                     } else {
                         self.settings_active = true;
                     }
@@ -291,7 +283,7 @@ impl ModeHandler for Sensors {
                 }
                 Event::LeftReleased => {
                     if self.settings_active {
-                        self.decrement_cur_setting();
+                        self.decrement_cur_setting(&mut peripherals.adc.settings);
                     } else {
                         self.toggle_reading_format();
                     }
@@ -299,7 +291,7 @@ impl ModeHandler for Sensors {
                 }
                 Event::RightReleased => {
                     if self.settings_active {
-                        self.increment_cur_setting();
+                        self.increment_cur_setting(&mut peripherals.adc.settings);
                     } else {
                         self.cur_channel = self.cur_channel.next_wrapping();
                     }
@@ -331,7 +323,7 @@ impl ModeHandler for Sensors {
         if update {
             let mut buf = [0; NUM_CHARS];
             if self.settings_active {
-                self.format_setting(&mut buf);
+                self.format_setting(&mut buf, &peripherals.adc.settings);
             } else {
                 self.format_reading(self.last_reading, &mut buf);
             }

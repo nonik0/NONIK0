@@ -3,7 +3,7 @@ use crate::{Context, Display, Event, Peripherals, Rand, SavedSettings, Setting, 
 use hcms_29xx::CHAR_WIDTH;
 use random_trait::Random as _;
 
-const EIGHT_BALL_RESPONSES: [&[u8; 8]; 27] = [
+const EIGHT_BALL_RESPONSES: [&[u8; 8]; 26] = [
     b"   Yes  ",
     b"  Yeah! ",
     b"No doubt",
@@ -29,36 +29,26 @@ const EIGHT_BALL_RESPONSES: [&[u8; 8]; 27] = [
     b"   Wat? ",
     b"   Dunno",
     b" Ask cat",
-    b" Ask cat",
     b"u cappin",
 ];
-const CUISINE_RESPONSES: [&[u8; 8]; 25] = [
-    b" Cambodn",
-    b" Chinese",
-    b"  Cuban ",
-    b" Ethiopn",
-    b"Filipino",
-    b" French ",
-    b" German ",
-    b"  Greek ",
-    b" Indian ",
-    b"Indonesn",
-    b" Israeli",
-    b" Italian",
-    b"Japanese",
-    b" Koreans",
-    b" Malaysn",
-    b" Mexican",
-    b" Oaxacan",
-    b"  Pizza ",
-    b" Russian",
-    b"Schezwan",
-    b" Spanish",
-    b"  Thai  ",
-    b" Turkish",
-    b" Venezln",
-    b" Vietnam",
-];
+// const CUISINE_RESPONSES: [&[u8; 8]; 16] = [
+//     b" Cambodn",
+//     b" Chinese",
+//     b"  Cuban ",
+//     b" Ethiopn",
+//     b" German ",
+//     b" Indian ",
+//     b"Japanese",
+//     b" Korean ",
+//     b" Malaysn",
+//     b"Meditrrn",
+//     b" Mexican",
+//     b"  Pizza ",
+//     b"  Thai  ",
+//     b" Turkish",
+//     b" Venezln",
+//     b" Vietnam",
+// ];
 const DICE_COLS: [[u8; CHAR_WIDTH]; 6] = [
     [0x00, 0x00, 0x08, 0x00, 0x00],
     [0x20, 0x00, 0x00, 0x00, 0x02],
@@ -74,7 +64,7 @@ enum Page {
     // hex integer?
     RollD6,
     EightBall,
-    Cuisine,
+    //Cuisine,
 }
 
 pub struct Random {
@@ -88,7 +78,7 @@ impl Random {
         let page = match saved_page {
             1 => Page::RollD6,
             2 => Page::EightBall,
-            3 => Page::Cuisine,
+            //3 => Page::Cuisine,
             _ => Page::IntegerBase10,
         };
 
@@ -110,9 +100,9 @@ impl Random {
         buf.copy_from_slice(EIGHT_BALL_RESPONSES[index as usize % EIGHT_BALL_RESPONSES.len()]);
     }
 
-    fn format_cuisine(buf: &mut [u8], index: u8) {
-        buf.copy_from_slice(CUISINE_RESPONSES[index as usize % CUISINE_RESPONSES.len()]);
-    }
+    // fn format_cuisine(buf: &mut [u8], index: u8) {
+    //     buf.copy_from_slice(CUISINE_RESPONSES[index as usize % CUISINE_RESPONSES.len()]);
+    // }
 
     fn roll_d6_message(value: u32, display: &mut Display) {
         let mut value = value;
@@ -148,8 +138,9 @@ impl ModeHandler for Random {
                     self.cur_page = match self.cur_page {
                         Page::IntegerBase10 => Page::RollD6,
                         Page::RollD6 => Page::EightBall,
-                        Page::EightBall => Page::Cuisine,
-                        Page::Cuisine => Page::IntegerBase10,
+                        Page::EightBall => Page::IntegerBase10,
+                        //Page::EightBall => Page::Cuisine,
+                        //Page::Cuisine => Page::IntegerBase10,
                     };
                     context
                         .settings
@@ -171,7 +162,7 @@ impl ModeHandler for Random {
             match self.cur_page {
                 Page::IntegerBase10 => Self::format_integer_base10(&mut buf, rand_value),
                 Page::EightBall => Self::format_eight_ball(&mut buf, rand_value as u8),
-                Page::Cuisine => Self::format_cuisine(&mut buf, rand_value as u8),
+                //Page::Cuisine => Self::format_cuisine(&mut buf, rand_value as u8),
                 Page::RollD6 => {
                     Self::roll_d6_message(rand_value, &mut peripherals.display);
                     return;

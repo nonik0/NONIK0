@@ -55,22 +55,22 @@ impl Default for AdcSettings {
     fn default() -> Self {
         AdcSettings {
             resolution: Resolution::_10BIT,
-            sample_number: SampleNumber::ACC1,
-            samp_cap: true, // Vref default 1.1V > 1.0V
-            prescaler: Prescaler::DIV128,
+            sample_number: SampleNumber::ACC64,
+            samp_cap: true,
+            prescaler: Prescaler::DIV256,
             adc_ref_voltage: AdcReferenceVoltage::INTREF,
-            init_delay: InitDelay::DLY0,
+            int_ref_voltage: IntReferenceVoltage::_2V5,
+            init_delay: InitDelay::DLY256,
             asdv: false,
-            sample_delay: 0,
-            sample_length: 0,
-            int_ref_voltage: IntReferenceVoltage::_1V1,
+            sample_delay: 10,
+            sample_length: 10,
         }
     }
 }
 
 pub struct Adc {
-    channel: Option<AdcChannel>,
-    settings: AdcSettings,
+    pub channel: Option<AdcChannel>,
+    pub settings: AdcSettings,
 
     adc0: Adc0,
     sigrow: Sigrow,
@@ -78,31 +78,49 @@ pub struct Adc {
 }
 
 impl Adc {
-    const DECIMAL_PRECISION: u16 = 2; // X.YY
-    const ADC_SETTINGS: AdcSettings = AdcSettings {
-        resolution: Resolution::_10BIT,
-        sample_number: SampleNumber::ACC64,
-        samp_cap: true,
-        prescaler: Prescaler::DIV256,
-        adc_ref_voltage: AdcReferenceVoltage::INTREF,
-        int_ref_voltage: IntReferenceVoltage::_1V1,
-        init_delay: InitDelay::DLY256,
-        asdv: false,
-        sample_delay: 10,
-        sample_length: 10,
-    };
+    //const DECIMAL_PRECISION: u16 = 2; // X.YY
+    //const PRECISION_DIVISOR: u32 = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
+    const PRECISION_DIVISOR: u32 = 1000;
 
     pub fn new(adc0: Adc0, sigrow: Sigrow, vref: Vref) -> Self {
-        let adc = Self {
+        Self {
             channel: None,
-            settings: Self::ADC_SETTINGS,
+            settings: AdcSettings::default(),
             adc0,
             sigrow,
             vref,
-        };
+        }
+    }
 
-        adc.apply_settings(adc.settings);
-        adc
+    pub fn apply_settings(&mut self) {
+        self.vref
+            .ctrla()
+            .modify(|_, w| w.adc0refsel().variant(self.settings.int_ref_voltage));
+
+        self.adc0.ctrla().write(|w| {
+            w.ressel().variant(self.settings.resolution);
+            w.enable().set_bit()
+        });
+
+        self.adc0
+            .ctrlb()
+            .write(|w| w.sampnum().variant(self.settings.sample_number));
+
+        self.adc0.ctrlc().write(|w| {
+            w.sampcap().bit(self.settings.samp_cap);
+            w.refsel().variant(self.settings.adc_ref_voltage);
+            w.presc().variant(self.settings.prescaler)
+        });
+
+        self.adc0.ctrld().write(|w| {
+            w.initdly().variant(self.settings.init_delay);
+            w.asdv().bit(self.settings.asdv);
+            w.sampdly().set(self.settings.sample_delay)
+        });
+
+        self.adc0
+            .sampctrl()
+            .write(|w| w.samplen().set(self.settings.sample_length));
     }
 
     pub fn disable(&mut self) {
@@ -114,14 +132,30 @@ impl Adc {
         if self.adc0.command().read().stconv().bit_is_set() {
             return None;
         }
-        if self.channel.is_none() {
-            // TODO: force apply temp settings?
+
+        let current_channel = self.channel.map(|c| c as u8).unwrap_or(0xFF);
+        let new_channel = channel as u8;
+        if current_channel != new_channel {
             let muxpos = match channel {
                 AdcChannel::Temp => adc0::muxpos::MUXPOS_A::TEMPSENSE,
                 AdcChannel::Vext => adc0::muxpos::MUXPOS_A::AIN10,
                 AdcChannel::Vref => adc0::muxpos::MUXPOS_A::INTREF,
                 AdcChannel::Gnd => adc0::muxpos::MUXPOS_A::GND,
             };
+            
+            // Always force 1.1V setting when selecting temp channel,
+            // but when switching from temp to another channel, reapply previous settings.
+            let is_temp_channel = new_channel == (AdcChannel::Temp as u8);
+            let was_temp_channel = current_channel == (AdcChannel::Temp as u8);
+            if is_temp_channel {
+                let old_settings = self.settings.clone();
+                self.settings.int_ref_voltage = IntReferenceVoltage::_1V1;
+                self.apply_settings();
+                self.settings = old_settings;
+            } else if was_temp_channel {
+                self.apply_settings();
+            }
+
             self.adc0.muxpos().write(|w| w.muxpos().variant(muxpos));
             self.adc0.command().write(|w| w.stconv().set_bit());
             self.channel = Some(channel);
@@ -179,9 +213,8 @@ impl Adc {
             Resolution::_10BIT => 1023, // 2^10 - 1
             Resolution::_8BIT => 255,   // 2^8 - 1
         };
-        let precision_divisor = 10u32.pow(5 - Self::DECIMAL_PRECISION as u32);
 
-        (((raw * vrefe5) / raw_max) / precision_divisor) as u16
+        (((raw * vrefe5) / raw_max) / Self::PRECISION_DIVISOR) as u16
     }
 
     fn temp_from_raw(&mut self, raw: u16, use_f: bool) -> u16 {
@@ -200,36 +233,5 @@ impl Adc {
         } else {
             temp_c
         }
-    }
-
-    pub fn apply_settings(&self, settings: AdcSettings) {
-        self.vref
-            .ctrla()
-            .modify(|_, w| w.adc0refsel().variant(self.settings.int_ref_voltage));
-
-        self.adc0.ctrla().write(|w| {
-            w.ressel().variant(self.settings.resolution);
-            w.enable().set_bit()
-        });
-
-        self.adc0
-            .ctrlb()
-            .write(|w| w.sampnum().variant(self.settings.sample_number));
-
-        self.adc0.ctrlc().write(|w| {
-            w.sampcap().bit(settings.samp_cap);
-            w.refsel().variant(settings.adc_ref_voltage);
-            w.presc().variant(self.settings.prescaler)
-        });
-
-        self.adc0.ctrld().write(|w| {
-            w.initdly().variant(self.settings.init_delay);
-            w.asdv().bit(settings.asdv);
-            w.sampdly().set(settings.sample_delay)
-        });
-
-        self.adc0
-            .sampctrl()
-            .write(|w| w.samplen().set(settings.sample_length));
     }
 }
