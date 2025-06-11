@@ -24,7 +24,6 @@ pub trait ConsecutiveEnumCycle: Sized + Copy {
     fn to_u8(self) -> u8;
     fn from_u8(val: u8) -> Self;
 
-    #[inline(always)]
     fn next(self) -> Self {
         let cur = self.to_u8();
         if cur < Self::COUNT - 1 {
@@ -34,13 +33,11 @@ pub trait ConsecutiveEnumCycle: Sized + Copy {
         }
     }
 
-    #[inline(always)]
     fn next_wrapping(self) -> Self {
         let next = (self.to_u8() + 1) % Self::COUNT;
         Self::from_u8(next)
     }
-
-    #[inline(always)]
+    
     fn prev(self) -> Self {
         let cur = self.to_u8();
         if cur > 0 {

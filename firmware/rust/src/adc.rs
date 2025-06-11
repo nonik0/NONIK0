@@ -1,4 +1,4 @@
-use crate::{impl_enum_cycle, Adc0, Sigrow, Vref};
+use crate::{impl_enum_cycle, utils::ConsecutiveEnumCycle, Adc0, Sigrow, Vref};
 use avrxmega_hal::pac::{adc0, vref};
 
 #[derive(Clone, Copy)]
@@ -23,7 +23,31 @@ impl_enum_cycle!(SampleNumber, 7);
 impl_enum_cycle!(Prescaler, 8);
 impl_enum_cycle!(AdcReferenceVoltage, 2); // skips VREFA=3
 impl_enum_cycle!(InitDelay, 6);
-impl_enum_cycle!(IntReferenceVoltage, 5);
+
+// reorders enum values to be incrementing voltage
+impl ConsecutiveEnumCycle for IntReferenceVoltage {
+    const COUNT: u8 = 5;
+
+    fn to_u8(self) -> u8 {
+        match self {
+            IntReferenceVoltage::_0V55 => 0,
+            IntReferenceVoltage::_1V1 => 1,
+            IntReferenceVoltage::_1V5 => 2,
+            IntReferenceVoltage::_2V5 => 3,
+            IntReferenceVoltage::_4V34 => 4,
+        }
+    }
+
+    fn from_u8(val: u8) -> Self {
+        match val {
+            0 => IntReferenceVoltage::_0V55,
+            1 => IntReferenceVoltage::_1V1,
+            2 => IntReferenceVoltage::_1V5,
+            4 => IntReferenceVoltage::_4V34,
+            _ => IntReferenceVoltage::_2V5,
+        }
+    }
+}
 
 const VREF_E5_VALUES: [u32; 5] = [55000, 110000, 250000, 434000, 150000];
 const VREF_VDD_VALUE: u32 = 360000; // ~3.6V for Vdd assuming LIR2032 battery
@@ -142,7 +166,7 @@ impl Adc {
                 AdcChannel::Vref => adc0::muxpos::MUXPOS_A::INTREF,
                 AdcChannel::Gnd => adc0::muxpos::MUXPOS_A::GND,
             };
-            
+
             // Always force 1.1V setting when selecting temp channel,
             // but when switching from temp to another channel, reapply previous settings.
             let is_temp_channel = new_channel == (AdcChannel::Temp as u8);
