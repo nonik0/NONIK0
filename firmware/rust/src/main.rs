@@ -4,7 +4,7 @@
 #![feature(asm_experimental_arch)]
 #![feature(type_alias_impl_trait)]
 
-mod format;
+mod adc;
 mod input;
 mod modes;
 #[cfg(feature = "debug_panic")]
@@ -15,6 +15,7 @@ mod random;
 mod saved_settings;
 #[cfg(feature = "tone")]
 mod tone;
+mod utils;
 
 use avrxmega_hal::eeprom::Eeprom;
 use avrxmega_hal::port::{mode::Output, *};
@@ -65,6 +66,9 @@ fn main() -> ! {
         input::Buttons::new(pins.pa7.into_pull_up_input(), pins.pb3.into_pull_up_input());
     let mut delay = Delay::new();
 
+    let mut adc = adc::Adc::new(dp.ADC0, dp.SIGROW, dp.VREF);
+    adc.seed_rand();
+
     let eeprom = Eeprom::new(dp.NVMCTRL);
     let settings = saved_settings::SavedSettings::new(eeprom);
 
@@ -85,18 +89,11 @@ fn main() -> ! {
     display.display_unblank().unwrap();
 
     let mut context = Context::new(settings);
+    let mut peripherals = Peripherals::new(adc, display);
 
-    // TODO: bit hacky of a way to give sensors access to its peripherals without passing through update()
-    // replace with ADC impl and passing ADC, like Display, to update()
-
-    // seed rand
-    Sensors::give_peripherals(dp.ADC0, dp.SIGROW, dp.VREF);
-    let mut sensors = Sensors::new_with_settings(&context.settings);
-    sensors.seed_rand();
-
-    // apply saved display settings
+    // TODO: improve, apply saved display settings
     let settings = Settings::new_with_settings(&context.settings);
-    settings.apply(&mut display);
+    settings.apply(&mut peripherals.display);
 
     // initialize default/saved mode
     let mut mode = Mode::from_context(&context);
@@ -130,7 +127,7 @@ fn main() -> ! {
             mode = Mode::from_context(&context);
         }
 
-        mode.update(&event, &mut context, &mut display);
+        mode.update(&event, &mut context, &mut peripherals);
 
         delay.delay_ms(BASE_DELAY_MS);
     }

@@ -1,7 +1,7 @@
 // parallax animation of "driving" during through mountains and clouds
 
 use super::ModeHandler;
-use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_COLS, NUM_ROWS, NUM_VIRT_COLS};
+use crate::{Context, Display, Event, Peripherals, Rand, COLUMN_GAP, NUM_COLS, NUM_ROWS, NUM_VIRT_COLS};
 use random_trait::Random;
 
 const DEFAULT_SKY_PERIOD: u8 = 7;
@@ -77,7 +77,12 @@ impl Vibes {
 
 impl ModeHandler for Vibes {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -135,7 +140,7 @@ impl ModeHandler for Vibes {
         }
 
         if update {
-            self.render(display);
+            self.render(&mut peripherals.display);
         }
     }
 }

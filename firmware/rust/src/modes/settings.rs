@@ -1,5 +1,8 @@
 use super::ModeHandler;
-use crate::{Context, Display, DisplayPeakCurrent, Event, SavedSettings, Setting as EepromSetting};
+use crate::{
+    Context, Display, DisplayPeakCurrent, Event, Peripherals, SavedSettings,
+    Setting as EepromSetting,
+};
 
 const BRIGHTNESS_DEFAULT: u8 = 12;
 const BRIGHTNESS_MAX: u8 = 16;
@@ -78,7 +81,12 @@ impl Settings {
 
 impl ModeHandler for Settings {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -111,11 +119,12 @@ impl ModeHandler for Settings {
                 Event::LeftReleased => match self.cur_setting {
                     Setting::Brightness => {
                         self.brightness = (self.brightness + BRIGHTNESS_MAX - 1) % BRIGHTNESS_MAX;
-                        display.set_brightness(self.brightness).unwrap();
+                        peripherals.display.set_brightness(self.brightness).unwrap();
                     }
                     Setting::Current => {
                         self.current = (self.current + CURRENT_MAX - 1) % CURRENT_MAX;
-                        display
+                        peripherals
+                            .display
                             .set_peak_current(Self::current_into(self.current))
                             .unwrap();
                     }
@@ -123,11 +132,12 @@ impl ModeHandler for Settings {
                 Event::RightReleased => match self.cur_setting {
                     Setting::Brightness => {
                         self.brightness = (self.brightness + 1) % BRIGHTNESS_MAX;
-                        display.set_brightness(self.brightness).unwrap();
+                        peripherals.display.set_brightness(self.brightness).unwrap();
                     }
                     Setting::Current => {
                         self.current = (self.current + 1) % CURRENT_MAX;
-                        display
+                        peripherals
+                            .display
                             .set_peak_current(Self::current_into(self.current))
                             .unwrap();
                     }
@@ -140,11 +150,11 @@ impl ModeHandler for Settings {
             match self.cur_setting {
                 Setting::Brightness => {
                     let buffer = BRIGHTNESS_LEVELS[self.brightness as usize];
-                    display.print_ascii_bytes(buffer).unwrap();
+                    peripherals.display.print_ascii_bytes(buffer).unwrap();
                 }
                 Setting::Current => {
                     let buffer = CURRENT_LEVELS[self.current as usize];
-                    display.print_ascii_bytes(buffer).unwrap();
+                    peripherals.display.print_ascii_bytes(buffer).unwrap();
                 }
             }
         }

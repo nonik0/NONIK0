@@ -1,5 +1,5 @@
 use super::ModeHandler;
-use crate::{Context, Display, Event, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS};
+use crate::{Context, Display, Event, Peripherals, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS};
 use hcms_29xx::CHAR_WIDTH;
 use random_trait::Random as _;
 
@@ -130,7 +130,12 @@ impl Random {
 
 impl ModeHandler for Random {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -168,12 +173,12 @@ impl ModeHandler for Random {
                 Page::EightBall => Self::format_eight_ball(&mut buf, rand_value as u8),
                 Page::Cuisine => Self::format_cuisine(&mut buf, rand_value as u8),
                 Page::RollD6 => {
-                    Self::roll_d6_message(rand_value, display);
+                    Self::roll_d6_message(rand_value, &mut peripherals.display);
                     return;
                 }
             }
 
-            display.print_ascii_bytes(&buf).unwrap()
+            peripherals.display.print_ascii_bytes(&buf).unwrap()
         }
     }
 }

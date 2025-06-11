@@ -1,5 +1,5 @@
 use super::ModeHandler;
-use crate::{Context, Display, Event, SavedSettings, Setting, NUM_CHARS};
+use crate::{Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS};
 
 const BLINK_PERIOD_ON: u8 = 1;
 const BLINK_PERIOD: u8 = 20;
@@ -77,7 +77,12 @@ impl Nametag {
 
 impl ModeHandler for Nametag {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         // different behavior when editing
@@ -158,7 +163,7 @@ impl ModeHandler for Nametag {
         }
 
         if update {
-            display.print_ascii_bytes(&self.name).unwrap();
+            peripherals.display.print_ascii_bytes(&self.name).unwrap();
         }
     }
 }

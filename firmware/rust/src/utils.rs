@@ -1,6 +1,56 @@
-//
-// Helper function to format an unsigned integer with a prefix and suffix value
-//
+// Only works with enums that have consecutive values starting from 0
+#[macro_export]
+macro_rules! impl_enum_cycle {
+    ($enum:ty, $count:expr) => {
+        impl crate::utils::ConsecutiveEnumCycle for $enum {
+            const COUNT: u8 = $count;
+
+            #[inline(always)]
+            fn to_u8(self) -> u8 {
+                self as u8
+            }
+
+            #[inline(always)]
+            fn from_u8(val: u8) -> Self {
+                unsafe { core::mem::transmute(val) }
+            }
+        }
+    };
+}
+
+pub trait ConsecutiveEnumCycle: Sized + Copy {
+    const COUNT: u8;
+
+    fn to_u8(self) -> u8;
+    fn from_u8(val: u8) -> Self;
+
+    #[inline(always)]
+    fn next(self) -> Self {
+        let cur = self.to_u8();
+        let next = if cur < Self::COUNT - 1 {
+            cur + 1
+        } else {
+            Self::COUNT - 1
+        };
+
+        Self::from_u8(next)
+    }
+
+    #[inline(always)]
+    fn next_wrapping(self) -> Self {
+        let next = (self.to_u8() + 1) % Self::COUNT;
+        Self::from_u8(next)
+    }
+
+    #[inline(always)]
+    fn prev(self) -> Self {
+        let cur = self.to_u8();
+        let prev = if cur > 0 { cur - 1 } else { 0 };
+        Self::from_u8(prev)
+    }
+}
+
+// Util function to format an unsigned integer with a prefix and suffix value
 pub fn format_uint(
     buf: &mut [u8],
     prefix: &[u8],
@@ -48,6 +98,7 @@ pub fn format_uint(
     }
 }
 
+// Util function to format a buffer with a left-aligned and right-aligned value
 pub fn format_buf(buf: &mut [u8], left: &[u8], right: &[u8]) {
     let num_chars = buf.len();
     let left_len = left.len();

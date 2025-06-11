@@ -1,5 +1,5 @@
-use crate::{Context, Display, Event, Setting, SavedSettings};
 use super::{ModeHandler, MODE_NAMES, NUM_MODES};
+use crate::{Context, Event, Peripherals, SavedSettings, Setting};
 
 pub struct Menu {
     index: usize,
@@ -22,7 +22,12 @@ impl Menu {
 
 impl ModeHandler for Menu {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -53,7 +58,7 @@ impl ModeHandler for Menu {
 
         if update {
             let menu_name = MODE_NAMES[self.index];
-            display.print_ascii_bytes(menu_name).unwrap();
+            peripherals.display.print_ascii_bytes(menu_name).unwrap();
             self.last_update = context.menu_counter;
         }
     }

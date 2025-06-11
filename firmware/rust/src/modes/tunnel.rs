@@ -1,5 +1,5 @@
 use super::ModeHandler;
-use crate::{Context, Display, Event, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
+use crate::{Context, Event, Peripherals, Rand, COLUMN_GAP, NUM_ROWS, NUM_VIRT_COLS};
 use heapless::Vec;
 use random_trait::Random;
 
@@ -37,7 +37,12 @@ impl Tunnel {
 
 impl ModeHandler for Tunnel {
     #[inline(never)]
-    fn update(&mut self, event: &Option<Event>, context: &mut Context, display: &mut Display) {
+    fn update(
+        &mut self,
+        event: &Option<Event>,
+        context: &mut Context,
+        peripherals: &mut Peripherals,
+    ) {
         let mut update = context.needs_update(&mut self.last_update);
 
         if let Some(event) = event {
@@ -104,7 +109,7 @@ impl ModeHandler for Tunnel {
                 }
             }
 
-            display.print_cols(cols.as_slice()).unwrap();
+            peripherals.display.print_cols(cols.as_slice()).unwrap();
         }
     }
 }
