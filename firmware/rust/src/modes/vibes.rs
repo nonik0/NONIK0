@@ -17,7 +17,6 @@ enum Vibe {
 }
 
 pub struct Vibes {
-    last_update: u16,
     cur_vibe: Vibe,
 
     cloud_cols: [u8; NUM_VIRT_COLS],
@@ -37,7 +36,6 @@ pub struct Vibes {
 impl Vibes {
     pub fn new() -> Self {
         Vibes {
-            last_update: 0,
             cur_vibe: Vibe::Mountains,
 
             cloud_cols: [SKY_COL; NUM_VIRT_COLS],
@@ -83,7 +81,7 @@ impl ModeHandler for Vibes {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             update = true;

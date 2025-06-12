@@ -36,7 +36,6 @@ enum Setting {
 
 pub struct Settings {
     cur_setting: Setting,
-    last_update: u16,
     brightness: u8,
     current: u8,
 }
@@ -56,7 +55,6 @@ impl Settings {
 
         Settings {
             cur_setting: Setting::Brightness,
-            last_update: 0,
             brightness: saved_brightness,
             current: saved_current,
         }
@@ -87,7 +85,7 @@ impl ModeHandler for Settings {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             update = true;

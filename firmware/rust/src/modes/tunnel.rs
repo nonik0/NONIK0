@@ -6,8 +6,7 @@ use random_trait::Random;
 const TUNNEL_PERIOD: u8 = 5;
 
 pub struct Tunnel {
-    last_update: u16,
-    tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
+     tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
 
     is_running: bool,
     runner_pos: u8,
@@ -22,7 +21,6 @@ impl Tunnel {
         }
 
         Tunnel {
-            last_update: 0,
             tunnel_cols: buf,
             is_running: true,
             runner_pos: NUM_ROWS as u8 / 2,
@@ -43,7 +41,7 @@ impl ModeHandler for Tunnel {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             match event {

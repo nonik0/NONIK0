@@ -1,5 +1,7 @@
 use super::ModeHandler;
-use crate::{Context, Display, Event, Peripherals, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS};
+use crate::{
+    Context, Display, Event, Peripherals, Rand, SavedSettings, Setting, NUM_CHARS, NUM_COLS,
+};
 use hcms_29xx::CHAR_WIDTH;
 use random_trait::Random as _;
 
@@ -68,7 +70,6 @@ enum Page {
 }
 
 pub struct Random {
-    last_update: u16,
     cur_page: Page,
 }
 
@@ -82,10 +83,7 @@ impl Random {
             _ => Page::IntegerBase10,
         };
 
-        Random {
-            last_update: 0,
-            cur_page: page,
-        }
+        Random { cur_page: page }
     }
 
     fn format_integer_base10(buf: &mut [u8], value: u32) {
@@ -126,7 +124,7 @@ impl ModeHandler for Random {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             match event {

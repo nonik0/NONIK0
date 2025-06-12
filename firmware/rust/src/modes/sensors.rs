@@ -35,7 +35,6 @@ pub struct Sensors {
     cur_channel: AdcChannel,
     cur_setting: SensorSetting,
     settings_active: bool,
-    last_update: u16,
     last_reading: u16,
 
     show_raw: bool,
@@ -57,7 +56,6 @@ impl Sensors {
             cur_channel: saved_reading,
             cur_setting: SensorSetting::Resolution,
             settings_active: false,
-            last_update: 0,
             last_reading: 0,
             show_raw: false,
             show_tempf: false,
@@ -251,7 +249,7 @@ impl ModeHandler for Sensors {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             match event {

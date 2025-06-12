@@ -3,7 +3,6 @@ use crate::{Context, Event, Peripherals, SavedSettings, Setting};
 
 pub struct Menu {
     index: usize,
-    last_update: u16,
 }
 
 impl Menu {
@@ -13,10 +12,7 @@ impl Menu {
             saved_index = 1;
         }
 
-        Menu {
-            index: saved_index,
-            last_update: 0,
-        }
+        Menu { index: saved_index }
     }
 }
 
@@ -28,7 +24,7 @@ impl ModeHandler for Menu {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             match event {
@@ -59,7 +55,6 @@ impl ModeHandler for Menu {
         if update {
             let menu_name = MODE_NAMES[self.index];
             peripherals.display.print_ascii_bytes(menu_name).unwrap();
-            self.last_update = context.menu_counter;
         }
     }
 }

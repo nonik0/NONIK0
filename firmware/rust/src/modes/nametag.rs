@@ -8,7 +8,6 @@ const MAX_IDLE_CYCLES: u8 = 200;
 
 pub struct Nametag {
     name: [u8; NUM_CHARS],
-    last_update: u16,
     edit_index: Option<usize>, // None = not editing, Some(edit_index) = editing
     blink_counter: u8,
     idle_counter: u8,
@@ -28,7 +27,6 @@ impl Nametag {
 
         Nametag {
             name: name_buf,
-            last_update: 0,
             edit_index: None,
             blink_counter: 0,
             idle_counter: 0,
@@ -77,7 +75,7 @@ impl ModeHandler for Nametag {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(edit_index) = self.edit_index {
             self.blink_counter = (self.blink_counter + 1) % BLINK_PERIOD;

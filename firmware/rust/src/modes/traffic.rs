@@ -42,8 +42,6 @@ impl Truck {
 }
 
 pub struct Traffic {
-    last_update: u16,
-
     is_driving: bool,
     driver_counter: u8,
     driver_period: u8,
@@ -70,8 +68,6 @@ impl Traffic {
         }
 
         Traffic {
-            last_update: 0,
-
             // driver is a 2x1 rectangle
             is_driving: true,
             driver_counter: 0,
@@ -255,7 +251,7 @@ impl ModeHandler for Traffic {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.needs_update(&mut self.last_update);
+        let mut update = context.need_update();
 
         if let Some(event) = event {
             match event {

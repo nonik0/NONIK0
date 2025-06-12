@@ -87,7 +87,7 @@ pub const MODE_NAMES: [&[u8; NUM_CHARS]; NUM_MODES] = [
 //static mut MODES_TAKEN: bool = false;
 
 pub struct Context {
-    menu_counter: u16,
+    mode_init: bool,
     mode_index: u8,
     pub settings: SavedSettings,
 }
@@ -99,7 +99,7 @@ impl Context {
             saved_index = 1;
         }
         Self {
-            menu_counter: 1,
+            mode_init: false,
             mode_index: saved_index,
             settings,
         }
@@ -111,15 +111,14 @@ impl Context {
     }
 
     #[inline(always)]
-    // TODO: improve clunkiness of tracking updates (detect menu changes to draw minimal updates)
-    pub fn needs_update(&mut self, last_update: &mut u16) -> bool {
-        let update = *last_update < self.menu_counter;
-        *last_update = self.menu_counter;
+    pub fn need_update(&mut self) -> bool {
+        let update = !self.mode_init;
+        self.mode_init = true;
         update
     }
 
     pub fn to_menu(&mut self) {
-        self.menu_counter += 1;
+        self.mode_init = false;
         self.mode_index = 0;
     }
 
@@ -128,6 +127,7 @@ impl Context {
     }
 
     pub fn to_mode(&mut self, index: usize) {
+        self.mode_init = false;
         self.mode_index = index as u8;
         self.settings
             .save_setting_byte(Setting::LastMode, self.mode_index);
@@ -137,8 +137,6 @@ impl Context {
 pub struct Peripherals {
     pub adc: Adc,
     pub display: Display,
-    // #[cfg(feature = "tone")]
-    // pub buzzer: Option<tone::Tone>,
 }
 
 impl Peripherals {
