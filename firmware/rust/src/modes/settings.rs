@@ -1,33 +1,14 @@
 use super::ModeHandler;
 use crate::{
-    Context, Display, DisplayPeakCurrent, Event, Peripherals, SavedSettings,
-    Setting as EepromSetting,
+    utils::format_uint, Context, Display, DisplayPeakCurrent, Event, Peripherals, SavedSettings,
+    Setting as EepromSetting, NUM_CHARS,
 };
 
 const BRIGHTNESS_DEFAULT: u8 = 12;
 const BRIGHTNESS_MAX: u8 = 16;
 const CURRENT_MAX: u8 = 4;
 const CURRENT_DEFAULT: u8 = 1;
-const BRIGHTNESS_LEVELS: [&[u8]; BRIGHTNESS_MAX as usize] = [
-    b"Brite: 0",
-    b"Brite: 1",
-    b"Brite: 2",
-    b"Brite: 3",
-    b"Brite: 4",
-    b"Brite: 5",
-    b"Brite: 6",
-    b"Brite: 7",
-    b"Brite: 8",
-    b"Brite: 9",
-    b"Brite:10",
-    b"Brite:11",
-    b"Brite:12",
-    b"Brite:13",
-    b"Brite:14",
-    b"Brite:15",
-];
-const CURRENT_LEVELS: [&[u8]; CURRENT_MAX as usize] =
-    [b"Cur: 4mA", b"Cur: 6mA", b"Cur: 9mA", b"Cur:13mA"];
+const CURRENT_LEVELS: [u8; CURRENT_MAX as usize] = [4, 6, 9, 13];
 
 enum Setting {
     Brightness,
@@ -85,24 +66,22 @@ impl ModeHandler for Settings {
         context: &mut Context,
         peripherals: &mut Peripherals,
     ) {
-        let mut update = context.need_update();
+        let update = event.is_some() || context.need_update();
 
         if let Some(event) = event {
-            update = true;
             match event {
                 Event::LeftHeld => {
-                    let saved_brightness = context
-                        .settings
-                        .read_setting_byte(EepromSetting::Brightness);
-                    let saved_current = context.settings.read_setting_byte(EepromSetting::Current);
-
-                    // Save settings when exiting if they have changed
-                    if self.brightness != saved_brightness {
+                    // Save settings if changed
+                    if self.brightness
+                        != context
+                            .settings
+                            .read_setting_byte(EepromSetting::Brightness)
+                    {
                         context
                             .settings
                             .save_setting_byte(EepromSetting::Brightness, self.brightness);
                     }
-                    if self.current != saved_current {
+                    if self.current != context.settings.read_setting_byte(EepromSetting::Current) {
                         context
                             .settings
                             .save_setting_byte(EepromSetting::Current, self.current);
@@ -110,51 +89,57 @@ impl ModeHandler for Settings {
                     context.to_menu();
                     return;
                 }
-                Event::RightHeld => match self.cur_setting {
-                    Setting::Brightness => self.cur_setting = Setting::Current,
-                    Setting::Current => self.cur_setting = Setting::Brightness,
-                },
-                Event::LeftReleased => match self.cur_setting {
-                    Setting::Brightness => {
-                        self.brightness = (self.brightness + BRIGHTNESS_MAX - 1) % BRIGHTNESS_MAX;
-                        peripherals.display.set_brightness(self.brightness).unwrap();
+                Event::RightHeld => {
+                    self.cur_setting = match self.cur_setting {
+                        Setting::Brightness => Setting::Current,
+                        Setting::Current => Setting::Brightness,
+                    };
+                }
+                Event::LeftReleased | Event::RightReleased => {
+                    let inc = matches!(event, Event::RightReleased);
+                    match self.cur_setting {
+                        Setting::Brightness => {
+                            self.brightness = if inc {
+                                (self.brightness + 1) % BRIGHTNESS_MAX
+                            } else {
+                                (self.brightness + BRIGHTNESS_MAX - 1) % BRIGHTNESS_MAX
+                            };
+                            peripherals.display.set_brightness(self.brightness).unwrap();
+                        }
+                        Setting::Current => {
+                            self.current = if inc {
+                                (self.current + 1) % CURRENT_MAX
+                            } else {
+                                (self.current + CURRENT_MAX - 1) % CURRENT_MAX
+                            };
+                            peripherals
+                                .display
+                                .set_peak_current(Self::current_into(self.current))
+                                .unwrap();
+                        }
                     }
-                    Setting::Current => {
-                        self.current = (self.current + CURRENT_MAX - 1) % CURRENT_MAX;
-                        peripherals
-                            .display
-                            .set_peak_current(Self::current_into(self.current))
-                            .unwrap();
-                    }
-                },
-                Event::RightReleased => match self.cur_setting {
-                    Setting::Brightness => {
-                        self.brightness = (self.brightness + 1) % BRIGHTNESS_MAX;
-                        peripherals.display.set_brightness(self.brightness).unwrap();
-                    }
-                    Setting::Current => {
-                        self.current = (self.current + 1) % CURRENT_MAX;
-                        peripherals
-                            .display
-                            .set_peak_current(Self::current_into(self.current))
-                            .unwrap();
-                    }
-                },
+                }
                 _ => {}
             }
         }
 
         if update {
+            let mut buffer = [0u8; NUM_CHARS];
             match self.cur_setting {
                 Setting::Brightness => {
-                    let buffer = BRIGHTNESS_LEVELS[self.brightness as usize];
-                    peripherals.display.print_ascii_bytes(buffer).unwrap();
+                    format_uint(&mut buffer, b"Brite:", self.brightness as u16, 0, None);
                 }
                 Setting::Current => {
-                    let buffer = CURRENT_LEVELS[self.current as usize];
-                    peripherals.display.print_ascii_bytes(buffer).unwrap();
+                    format_uint(
+                        &mut buffer,
+                        b"Cur:",
+                        CURRENT_LEVELS[self.current as usize] as u16,
+                        0,
+                        Some(b"mA"),
+                    );
                 }
             }
+            peripherals.display.print_ascii_bytes(&buffer).unwrap();
         }
     }
 }
