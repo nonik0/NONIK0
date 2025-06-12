@@ -1,9 +1,7 @@
 use super::ModeHandler;
 use crate::{
-    adc::*,
-    impl_enum_cycle,
-    utils::*,
-    Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS,
+    adc::*, impl_enum_cycle, utils::*, Context, Event, Peripherals, SavedSettings, Setting,
+    NUM_CHARS,
 };
 
 pub const RESOLUTION_VALUES: [u16; 2] = [10, 8]; // 2^10 - 1, 2^8 - 1
@@ -62,31 +60,26 @@ impl Sensors {
         }
     }
 
-    fn format_setting(&self, buf: &mut [u8; NUM_CHARS], adc_settings: &AdcSettings) {
+    fn format_setting(&self, buf: &mut [u8; NUM_CHARS], adc: &AdcSettings) {
         match self.cur_setting {
             SensorSetting::Resolution => format_uint(
                 buf,
                 b"Res:",
-                RESOLUTION_VALUES[adc_settings.resolution as usize],
+                RESOLUTION_VALUES[adc.resolution as usize],
                 0,
                 Some(b"b"),
             ),
-            SensorSetting::SampleNumber => format_uint(
-                buf,
-                b"Snum:",
-                //[adc_settings.sample_number as usize],
-                1 << (adc_settings.sample_number as u8),
-                0,
-                None,
-            ),
+            SensorSetting::SampleNumber => {
+                format_uint(buf, b"Snum:", 1 << (adc.sample_number as u8), 0, None)
+            }
             SensorSetting::SampCap => {
-                format_buf(buf, b"Scap:", BOOL_STRINGS[adc_settings.samp_cap as usize])
+                format_buf(buf, b"Scap:", BOOL_STRINGS[adc.samp_cap as usize])
             }
             SensorSetting::RefVoltage => format_buf(
                 buf,
                 b"Vr:",
-                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
-                    INT_REF_VOLTAGE_STRINGS[adc_settings.int_ref_voltage as usize]
+                if adc.adc_ref_voltage == AdcReferenceVoltage::INTREF {
+                    INT_REF_VOLTAGE_STRINGS[adc.int_ref_voltage as usize]
                 } else {
                     VDD_REF_VOLTAGE_STRING
                 },
@@ -94,25 +87,23 @@ impl Sensors {
             SensorSetting::Prescaler => format_uint(
                 buf,
                 b"Div:",
-                PRESCALER_VALUES[adc_settings.prescaler as usize],
+                PRESCALER_VALUES[adc.prescaler as usize],
                 0,
                 None,
             ),
             SensorSetting::InitDelay => format_uint(
                 buf,
                 b"Idly:",
-                INIT_DELAY_VALUES[adc_settings.init_delay as usize],
+                INIT_DELAY_VALUES[adc.init_delay as usize],
                 0,
                 None,
             ),
-            SensorSetting::SetAsdv => {
-                format_buf(buf, b"Asdv:", BOOL_STRINGS[adc_settings.asdv as usize])
-            }
+            SensorSetting::SetAsdv => format_buf(buf, b"Asdv:", BOOL_STRINGS[adc.asdv as usize]),
             SensorSetting::SampleDelay => {
-                format_uint(buf, b"Sdly:", adc_settings.sample_delay as u16, 0, None)
+                format_uint(buf, b"Sdly:", adc.sample_delay as u16, 0, None)
             }
             SensorSetting::SampleLength => {
-                format_uint(buf, b"Slen:", adc_settings.sample_length as u16, 0, None)
+                format_uint(buf, b"Slen:", adc.sample_length as u16, 0, None)
             }
         }
     }
@@ -145,83 +136,47 @@ impl Sensors {
         format_uint(buf, prefix, value, decimals, suffix);
     }
 
-    fn decrement_cur_setting(&mut self, adc_settings: &mut AdcSettings) {
+    fn decrement_cur_setting(&mut self, adc: &mut AdcSettings) {
         match self.cur_setting {
-            SensorSetting::Resolution => {
-                adc_settings.resolution = adc_settings.resolution.prev();
-            }
-            SensorSetting::SampleNumber => {
-                adc_settings.sample_number = adc_settings.sample_number.prev();
-            }
-            SensorSetting::SampCap => {
-                adc_settings.samp_cap = !adc_settings.samp_cap;
-            }
+            SensorSetting::Resolution => adc.resolution = adc.resolution.prev(),
+            SensorSetting::SampleNumber => adc.sample_number = adc.sample_number.prev(),
+            SensorSetting::SampCap => adc.samp_cap = !adc.samp_cap,
             SensorSetting::RefVoltage => {
-                // decrement to internal reference voltage if at VDD reference voltage
-                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
-                    // adc_settings.adc_ref_voltage == AdcReferenceVoltage::VDD
-                    adc_settings.adc_ref_voltage = AdcReferenceVoltage::INTREF;
-                    adc_settings.int_ref_voltage = IntReferenceVoltage::_1V5;
+                if adc.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
+                    adc.adc_ref_voltage = AdcReferenceVoltage::INTREF;
+                    adc.int_ref_voltage = IntReferenceVoltage::_1V5;
                 } else {
-                    adc_settings.int_ref_voltage = adc_settings.int_ref_voltage.prev();
+                    adc.int_ref_voltage = adc.int_ref_voltage.prev();
                 }
             }
-            SensorSetting::Prescaler => {
-                adc_settings.prescaler = adc_settings.prescaler.prev();
-            }
-            SensorSetting::InitDelay => {
-                adc_settings.init_delay = adc_settings.init_delay.prev();
-            }
-            SensorSetting::SetAsdv => {
-                adc_settings.asdv = !adc_settings.asdv;
-            }
-            SensorSetting::SampleDelay => {
-                adc_settings.sample_delay = adc_settings.sample_delay.saturating_sub(1);
-            }
-            SensorSetting::SampleLength => {
-                adc_settings.sample_length = adc_settings.sample_length.saturating_sub(1);
-            }
-        };
+            SensorSetting::Prescaler => adc.prescaler = adc.prescaler.prev(),
+            SensorSetting::InitDelay => adc.init_delay = adc.init_delay.prev(),
+            SensorSetting::SetAsdv => adc.asdv = !adc.asdv,
+            SensorSetting::SampleDelay => adc.sample_delay = adc.sample_delay.saturating_sub(1),
+            SensorSetting::SampleLength => adc.sample_length = adc.sample_length.saturating_sub(1),
+        }
     }
 
-    fn increment_cur_setting(&mut self, adc_settings: &mut AdcSettings) {
+    fn increment_cur_setting(&mut self, adc: &mut AdcSettings) {
         match self.cur_setting {
-            SensorSetting::Resolution => {
-                adc_settings.resolution = adc_settings.resolution.next();
-            }
-            SensorSetting::SampleNumber => {
-                adc_settings.sample_number = adc_settings.sample_number.next();
-            }
-            SensorSetting::SampCap => {
-                adc_settings.samp_cap = !adc_settings.samp_cap;
-            }
+            SensorSetting::Resolution => adc.resolution = adc.resolution.next(),
+            SensorSetting::SampleNumber => adc.sample_number = adc.sample_number.next(),
+            SensorSetting::SampCap => adc.samp_cap = !adc.samp_cap,
             SensorSetting::RefVoltage => {
-                if adc_settings.adc_ref_voltage == AdcReferenceVoltage::INTREF {
-                    // advance to VDD reference voltage if at last internal reference voltage
-                    if adc_settings.int_ref_voltage == IntReferenceVoltage::_1V5 {
-                        // 1.5V is the last option, so switch to VDD
-                        adc_settings.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
+                if adc.adc_ref_voltage == AdcReferenceVoltage::INTREF {
+                    if adc.int_ref_voltage == IntReferenceVoltage::_1V5 {
+                        adc.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
                     } else {
-                        adc_settings.int_ref_voltage = adc_settings.int_ref_voltage.next();
+                        adc.int_ref_voltage = adc.int_ref_voltage.next();
                     }
                 }
             }
-            SensorSetting::Prescaler => {
-                adc_settings.prescaler = adc_settings.prescaler.next();
-            }
-            SensorSetting::InitDelay => {
-                adc_settings.init_delay = adc_settings.init_delay.next();
-            }
-            SensorSetting::SetAsdv => {
-                adc_settings.asdv = !adc_settings.asdv;
-            }
-            SensorSetting::SampleDelay => {
-                adc_settings.sample_delay = (adc_settings.sample_delay + 1).min(15);
-            }
-            SensorSetting::SampleLength => {
-                adc_settings.sample_length = (adc_settings.sample_length + 1).min(31);
-            }
-        };
+            SensorSetting::Prescaler => adc.prescaler = adc.prescaler.next(),
+            SensorSetting::InitDelay => adc.init_delay = adc.init_delay.next(),
+            SensorSetting::SetAsdv => adc.asdv = !adc.asdv,
+            SensorSetting::SampleDelay => adc.sample_delay = (adc.sample_delay + 1).min(15),
+            SensorSetting::SampleLength => adc.sample_length = (adc.sample_length + 1).min(31),
+        }
     }
 
     fn toggle_reading_format(&mut self) {
