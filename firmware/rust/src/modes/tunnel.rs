@@ -6,7 +6,7 @@ use random_trait::Random;
 const TUNNEL_PERIOD: u8 = 5;
 
 pub struct Tunnel {
-     tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
+    tunnel_cols: Vec<u8, NUM_VIRT_COLS>,
 
     is_running: bool,
     runner_pos: u8,
@@ -138,7 +138,7 @@ impl TunnelState {
         if self.counter != 0 {
             return None;
         }
-        
+
         // shift/expand tunnel
         let mut rand = Rand::default();
         let will_shift = rand.get_u8() % 2 == 0;

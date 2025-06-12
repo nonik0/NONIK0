@@ -1,4 +1,4 @@
-use crate::{impl_enum_cycle, utils::ConsecutiveEnumCycle, Adc0, Sigrow, Vref};
+use crate::{impl_enum_cycle, utils::EnumCycle, Adc0, Sigrow, Vref};
 use avrxmega_hal::pac::{adc0, vref};
 
 #[derive(Clone, Copy)]
@@ -25,7 +25,7 @@ impl_enum_cycle!(AdcReferenceVoltage, 2); // skips VREFA=3
 impl_enum_cycle!(InitDelay, 6);
 
 // reorders enum values to be incrementing voltage
-impl ConsecutiveEnumCycle for IntReferenceVoltage {
+impl EnumCycle for IntReferenceVoltage {
     const COUNT: u8 = 5;
 
     fn to_u8(self) -> u8 {

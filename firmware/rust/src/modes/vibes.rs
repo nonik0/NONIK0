@@ -1,7 +1,9 @@
 // parallax animation of "driving" during through mountains and clouds
 
 use super::ModeHandler;
-use crate::{Context, Display, Event, Peripherals, Rand, COLUMN_GAP, NUM_COLS, NUM_ROWS, NUM_VIRT_COLS};
+use crate::{
+    Context, Display, Event, Peripherals, Rand, COLUMN_GAP, NUM_COLS, NUM_ROWS, NUM_VIRT_COLS,
+};
 use random_trait::Random;
 
 const DEFAULT_SKY_PERIOD: u8 = 7;

@@ -10,7 +10,7 @@ const GOAL_POS_START: u8 = ((NUM_VIRT_COLS >> 1) + hcms_29xx::CHAR_WIDTH) as u8;
 const TRUCK_MAX_COUNT_START: usize = 1;
 const MAX_TRUCKS: usize = 3;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy)]
 struct Truck {
     lane: u8,
     length: u8,
@@ -20,18 +20,14 @@ struct Truck {
 impl Truck {
     fn rand(&mut self, lane_min: u8, lane_max: u8) {
         let mut rand = Rand::default();
-
         let max_width = lane_max - lane_min + 1;
 
-        self.length = 2;
-        if max_width > 1 {
-            self.length += rand.get_u8() % 7;
+        self.length = 2 + if max_width > 1 { rand.get_u8() % 7 } else { 0 };
+        self.width = if max_width > 1 && self.length > 2 {
+            2
+        } else {
+            1
         };
-
-        self.width = 1;
-        if max_width > 1 && self.length > 2 {
-            self.width = 2;
-        }
 
         self.lane = lane_min;
         let range = max_width - self.width + 1;
@@ -56,17 +52,13 @@ pub struct Traffic {
     traffic_counter: u8,
     traffic_period: u8,
     truck_max_count: usize,
-    truck_count: usize,
     trucks: [Truck; MAX_TRUCKS],
 }
 
 impl Traffic {
     pub fn new() -> Self {
         let mut buf: Vec<u8, NUM_VIRT_COLS> = Vec::new();
-        for _ in 0..NUM_VIRT_COLS {
-            buf.push(0).unwrap();
-        }
-
+        buf.resize_default(NUM_VIRT_COLS).ok();
         Traffic {
             // driver is a 2x1 rectangle
             is_driving: true,
@@ -83,10 +75,12 @@ impl Traffic {
             traffic_cols: buf,
             traffic_counter: 0,
             traffic_period: TRAFFIC_PERIOD_START,
-
             truck_max_count: TRUCK_MAX_COUNT_START,
-            truck_count: 0,
-            trucks: [Truck::default(); MAX_TRUCKS],
+            trucks: [Truck {
+                lane: 0,
+                length: 0,
+                width: 0,
+            }; MAX_TRUCKS],
         }
     }
 
@@ -111,37 +105,12 @@ impl Traffic {
 
     fn clear_traffic(&mut self) {
         self.crashed = false;
-        self.truck_count = 0;
-        for i in 0..MAX_TRUCKS {
-            self.trucks[i].length = 0;
+        for truck in &mut self.trucks {
+            truck.length = 0;
         }
 
         self.traffic_cols.clear();
-        for _ in 0..NUM_VIRT_COLS {
-            self.traffic_cols.push(0).unwrap();
-        }
-
-        // in future clear specific traffic only
-        // // clear all traffic behind goal
-        // for i in 0..self.goal_pos + 1 {
-        //     self.traffic_cols[i as usize] = 0;
-        // }
-        // // trim width 1 trucks that are behind goal
-        // if self.goal_pos < NUM_VIRT_COLS as u8 - 1 {
-        //     let col_after_goal = self
-        //         .traffic_cols
-        //         .get(self.goal_pos as usize + 1)
-        //         .copied()
-        //         .unwrap_or(0);
-        //     let col_after_goal2 = self
-        //         .traffic_cols
-        //         .get(self.goal_pos as usize + 2)
-        //         .copied()
-        //         .unwrap_or(0);
-        //     self.traffic_cols[self.goal_pos as usize + 1] &=
-        //         !(col_after_goal | (col_after_goal ^ col_after_goal2));
-        // }
-        // TODO: more cleanup
+        self.traffic_cols.resize_default(NUM_VIRT_COLS).ok();
     }
 
     fn next_driver_pos(&mut self) -> Option<u8> {
@@ -162,78 +131,57 @@ impl Traffic {
 
         // generate next col
         let mut next_col: u8 = 0;
-        for i in 0..self.truck_count {
-            let truck = &mut self.trucks[i];
-
+        let mut truck_count = 0;
+        for truck in &mut self.trucks {
             if truck.length > 0 {
                 next_col |= Self::truck_col(truck);
                 truck.length -= 1;
-            } else if truck.length == 0 {
-                // delay in decreasing count allows for random gap behind
-                let mut rand = Rand::default();
-                if rand.get_u8() % 2 == 0 {
-                    self.truck_count -= 1;
-                }
+                truck_count += 1;
             }
         }
 
-        let mut rand = Rand::default();
-
-        // Find the available gaps in the traffic lanes
+        // Find gaps
         const MIN_GAP_SIZE: usize = 3;
         let mut gap_lanes = [0u8; MAX_TRUCKS + 1];
         let mut gap_sizes = [0u8; MAX_TRUCKS + 1];
         let mut gap_count = 0;
-
-        let mut gap_start_lane = 0u8;
-        while gap_start_lane < NUM_ROWS as u8 {
-            let mut gap_stop_lane = gap_start_lane;
-
-            while (gap_stop_lane < NUM_ROWS as u8)
-                && (next_col & (0b00000001 << (NUM_ROWS as u8 - gap_stop_lane as u8 - 1)) == 0)
+        let mut lane = 0u8;
+        while lane < NUM_ROWS as u8 {
+            let mut gap = 0u8;
+            while lane + gap < NUM_ROWS as u8
+                && (next_col & (0b00000001 << (NUM_ROWS as u8 - lane - gap - 1))) == 0
             {
-                gap_stop_lane += 1;
+                gap += 1;
             }
-
-            let gap_size = gap_stop_lane - gap_start_lane;
-            if gap_size >= MIN_GAP_SIZE as u8 {
-                gap_lanes[gap_count] = gap_start_lane;
-                gap_sizes[gap_count] = gap_size;
+            if gap >= MIN_GAP_SIZE as u8 {
+                gap_lanes[gap_count] = lane;
+                gap_sizes[gap_count] = gap;
                 gap_count += 1;
             }
-
-            gap_start_lane = gap_stop_lane + 1;
+            lane += gap + 1;
         }
 
-        // if there's room for another truck
-        let truck_chance = 7 + self.truck_count as u8;
+        let truck_chance = 7 + truck_count as u8;
         if gap_count > 0
-            && self.truck_count < self.truck_max_count
-            && (rand.get_u8() % truck_chance) == 0
+            && truck_count < self.truck_max_count
+            && (Rand::default().get_u8() % truck_chance) == 0
         {
-            for i in 0..MAX_TRUCKS {
-                if self.trucks[i].length == 0 {
-                    // pick random gap to place truck within, size 3 gaps can only have 1 width trucks
-                    let gap_index = rand.get_u8() as usize % gap_count;
-                    let gap_lane_start = gap_lanes[gap_index] as u8;
-                    let gap_lane_end = gap_lane_start + gap_sizes[gap_index] as u8 - 1;
-
-                    // min lane can be adjacent to edge but not truck
+            for truck in &mut self.trucks {
+                if truck.length == 0 {
+                    let gap_index = Rand::default().get_u8() as usize % gap_count;
+                    let gap_lane_start = gap_lanes[gap_index];
+                    let gap_lane_end = gap_lane_start + gap_sizes[gap_index] - 1;
                     let min_truck_lane = if gap_lane_start == 0 {
                         0
                     } else {
                         gap_lane_start + 1
                     };
-
-                    // max lane can be adjacent to edge but not truck
                     let max_truck_lane = if gap_lane_end == NUM_ROWS as u8 - 1 {
                         NUM_ROWS as u8 - 1
                     } else {
                         gap_lane_end - 1
                     };
-
-                    self.trucks[i].rand(min_truck_lane, max_truck_lane);
-                    self.truck_count += 1;
+                    truck.rand(min_truck_lane, max_truck_lane);
                     break;
                 }
             }

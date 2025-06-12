@@ -1,8 +1,8 @@
+use crate::CoreClock;
 use avrxmega_hal::{
     clock::Clock,
     port::{mode::Output, PA5},
 };
-use crate::CoreClock;
 use core::cell::RefCell;
 
 type Pin = avrxmega_hal::port::Pin<Output, PA5>;

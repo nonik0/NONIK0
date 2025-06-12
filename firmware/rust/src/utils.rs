@@ -1,8 +1,8 @@
-// Only works with enums that have consecutive values starting from 0
+// Util macro and trait to aid with cycling through enum values
 #[macro_export]
 macro_rules! impl_enum_cycle {
     ($enum:ty, $count:expr) => {
-        impl crate::utils::ConsecutiveEnumCycle for $enum {
+        impl crate::utils::EnumCycle for $enum {
             const COUNT: u8 = $count;
 
             #[inline(always)]
@@ -18,7 +18,7 @@ macro_rules! impl_enum_cycle {
     };
 }
 
-pub trait ConsecutiveEnumCycle: Sized + Copy {
+pub trait EnumCycle: Sized + Copy {
     const COUNT: u8;
 
     fn to_u8(self) -> u8;
