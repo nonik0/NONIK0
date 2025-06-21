@@ -1,4 +1,4 @@
-use crate::{adc::Adc, Display, Event, SavedSettings, Setting, NUM_CHARS};
+use crate::{adc::Adc, Display, Event, SavedSettings, Setting, tone::Tone, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
 mod menu;
@@ -89,6 +89,7 @@ pub const MODE_NAMES: [&[u8; NUM_CHARS]; NUM_MODES] = [
 pub struct Context {
     mode_init: bool,
     mode_index: u8,
+    pub tone_enabled: bool,
     pub settings: SavedSettings,
 }
 
@@ -101,6 +102,7 @@ impl Context {
         Self {
             mode_init: false,
             mode_index: saved_index,
+            tone_enabled: settings.read_setting_byte(Setting::Tone) != 0,
             settings,
         }
     }
@@ -136,12 +138,13 @@ impl Context {
 
 pub struct Peripherals {
     pub adc: Adc,
+    pub buzzer: Tone,
     pub display: Display,
 }
 
 impl Peripherals {
-    pub fn new(adc: Adc, display: Display) -> Self {
-        Self { adc, display }
+    pub fn new(adc: Adc, buzzer: Tone, display: Display) -> Self {
+        Self { adc, buzzer, display }
     }
 }
 

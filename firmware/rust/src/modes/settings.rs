@@ -1,6 +1,7 @@
 use super::ModeHandler;
 use crate::{
-    utils::format_uint, Context, Display, DisplayPeakCurrent, Event, Peripherals, SavedSettings,
+    utils::{format_buf, format_uint},
+    Context, Display, DisplayPeakCurrent, Event, Peripherals, SavedSettings,
     Setting as EepromSetting, NUM_CHARS,
 };
 
@@ -13,6 +14,7 @@ const CURRENT_LEVELS: [u8; CURRENT_MAX as usize] = [4, 6, 9, 13];
 enum Setting {
     Brightness,
     Current,
+    ToneToggle, // tone state is held in context
 }
 
 pub struct Settings {
@@ -92,7 +94,8 @@ impl ModeHandler for Settings {
                 Event::RightHeld => {
                     self.cur_setting = match self.cur_setting {
                         Setting::Brightness => Setting::Current,
-                        Setting::Current => Setting::Brightness,
+                        Setting::Current => Setting::ToneToggle,
+                        Setting::ToneToggle => Setting::Brightness,
                     };
                 }
                 Event::LeftReleased | Event::RightReleased => {
@@ -117,6 +120,9 @@ impl ModeHandler for Settings {
                                 .set_peak_current(Self::current_into(self.current))
                                 .unwrap();
                         }
+                        Setting::ToneToggle => {
+                            context.tone_enabled = !context.tone_enabled;
+                        }
                     }
                 }
                 _ => {}
@@ -136,6 +142,13 @@ impl ModeHandler for Settings {
                         CURRENT_LEVELS[self.current as usize] as u16,
                         0,
                         Some(b"mA"),
+                    );
+                }
+                Setting::ToneToggle => {
+                    format_buf(
+                        &mut buffer,
+                        b"Tone:",
+                        if context.tone_enabled { b"On" } else { b"Off" },
                     );
                 }
             }

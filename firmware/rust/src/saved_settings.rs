@@ -3,10 +3,11 @@ pub enum Setting {
     Version = 0x00,
     Brightness = 0x01,
     Current = 0x02,
-    Name = 0x03, // 8 bytes wide
-    LastMode = 0x0B,
-    RandomPage = 0x0C,
-    SensorPage = 0x0D,
+    Tone = 0x03,
+    Name = 0x04, // 8 bytes wide
+    LastMode = 0x0C,
+    RandomPage = 0x0D,
+    SensorPage = 0x0E,
 }
 
 pub struct SavedSettings(crate::Eeprom);

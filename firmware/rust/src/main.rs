@@ -72,8 +72,8 @@ fn main() -> ! {
     let eeprom = Eeprom::new(dp.NVMCTRL);
     let settings = saved_settings::SavedSettings::new(eeprom);
 
-    #[cfg(feature = "tone")]
-    let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
+    // TODO: fix tone feature
+    let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
 
     let mut display = Display::new(
         pins.pa6.into_output(),
@@ -89,7 +89,7 @@ fn main() -> ! {
     display.display_unblank().unwrap();
 
     let mut context = Context::new(settings);
-    let mut peripherals = Peripherals::new(adc, display);
+    let mut peripherals = Peripherals::new(adc, buzzer, display);
 
     // TODO: improve, apply saved display settings
     let settings = Settings::new_with_settings(&context.settings);
@@ -111,12 +111,16 @@ fn main() -> ! {
             #[cfg(feature = "tone")]
             // higher/shorter tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
-                buzzer.tone(5000, 5);
+                if context.tone_enabled {
+                    peripherals.buzzer.tone(5000, 5);
+                }
             }
             #[cfg(feature = "tone")]
             // lower/longer tone on button held press
             Some(Event::LeftHeld) | Some(Event::RightHeld) => {
-                buzzer.tone(4000, 10);
+                if context.tone_enabled {
+                    peripherals.buzzer.tone(4000, 10);
+                }
             }
             _ => {}
         }
