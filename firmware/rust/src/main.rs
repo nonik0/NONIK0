@@ -7,13 +7,14 @@
 mod adc;
 mod input;
 mod modes;
+mod music;
 #[cfg(feature = "debug_panic")]
 mod panic;
 #[cfg(not(feature = "debug_panic"))]
 use panic_halt as _;
 mod random;
 mod saved_settings;
-#[cfg(feature = "tone")]
+//#[cfg(feature = "tone")]
 mod tone;
 mod utils;
 
@@ -22,6 +23,7 @@ use avrxmega_hal::port::{mode::Output, *};
 use embedded_hal::delay::DelayNs;
 use modes::*;
 use random::Rand;
+use tone::Tone;
 
 // using until proper ADC HAL implementation
 type Adc0 = avrxmega_hal::pac::ADC0;
@@ -73,8 +75,10 @@ fn main() -> ! {
     let settings = saved_settings::SavedSettings::new(eeprom);
 
     // TODO: fix tone feature
-    let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
+    let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
 
+
+    
     let mut display = Display::new(
         pins.pa6.into_output(),
         pins.pa4.into_output(),
@@ -87,6 +91,9 @@ fn main() -> ! {
     .unwrap();
     display.begin().unwrap();
     display.display_unblank().unwrap();
+
+
+    music::play_song(&mut buzzer, &mut display);
 
     let mut context = Context::new(settings);
     let mut peripherals = Peripherals::new(adc, buzzer, display);
@@ -108,14 +115,14 @@ fn main() -> ! {
                     context.to_menu();
                 }
             }
-            #[cfg(feature = "tone")]
+            //#[cfg(feature = "tone")]
             // higher/shorter tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
                 if context.tone_enabled {
                     peripherals.buzzer.tone(5000, 5);
                 }
             }
-            #[cfg(feature = "tone")]
+            //#[cfg(feature = "tone")]
             // lower/longer tone on button held press
             Some(Event::LeftHeld) | Some(Event::RightHeld) => {
                 if context.tone_enabled {
