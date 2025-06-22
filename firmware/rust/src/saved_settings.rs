@@ -23,6 +23,11 @@ impl SavedSettings {
     }
 
     #[inline(always)]
+    pub fn read_setting_bool(&self, setting: Setting) -> bool {
+        self.read_setting_byte(setting) != 0
+    }
+
+    #[inline(always)]
     pub fn read_setting_byte(&self, setting: Setting) -> u8 {
         self.0.read_byte(setting as u16)
     }
@@ -30,6 +35,11 @@ impl SavedSettings {
     #[inline(always)]
     pub fn save_setting(&mut self, setting: Setting, buf: &[u8]) {
         self.0.write(setting as u16, buf).unwrap();
+    }
+
+    #[inline(always)]
+    pub fn save_setting_bool(&mut self, setting: Setting, value: bool) {
+        self.save_setting_byte(setting, value as u8);
     }
 
     #[inline(always)]

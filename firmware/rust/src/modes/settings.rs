@@ -88,6 +88,13 @@ impl ModeHandler for Settings {
                             .settings
                             .save_setting_byte(EepromSetting::Current, self.current);
                     }
+                    if context.tone_enabled
+                        != context.settings.read_setting_bool(EepromSetting::Tone)
+                    {
+                        context
+                            .settings
+                            .save_setting_bool(EepromSetting::Tone, context.tone_enabled);
+                    }
                     context.to_menu();
                     return;
                 }

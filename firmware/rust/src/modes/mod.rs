@@ -102,7 +102,7 @@ impl Context {
         Self {
             mode_init: false,
             mode_index: saved_index,
-            tone_enabled: settings.read_setting_byte(Setting::Tone) != 0,
+            tone_enabled: settings.read_setting_bool(Setting::Tone),
             settings,
         }
     }
