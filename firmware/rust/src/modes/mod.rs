@@ -1,10 +1,12 @@
-use crate::{adc::Adc, Display, Event, SavedSettings, Setting, tone::Tone, NUM_CHARS};
+use crate::{adc::Adc, Display, Event, I2C, SavedSettings, Setting, tone::Tone, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
 mod menu;
-#[cfg(not(feature = "no_nametag"))]
+#[cfg(not(feature = "no_i2cutils"))]
 mod nametag;
 #[cfg(not(feature = "no_random"))]
+mod i2c_utils;
+#[cfg(not(feature = "no_nametag"))]
 mod random;
 #[cfg(not(feature = "no_sensors"))]
 mod sensors;
@@ -18,9 +20,11 @@ mod tunnel;
 mod vibes;
 
 pub use menu::*;
-#[cfg(not(feature = "no_nametag"))]
+#[cfg(not(feature = "no_i2cutils"))]
 pub use nametag::*;
 #[cfg(not(feature = "no_random"))]
+pub use i2c_utils::*;
+#[cfg(not(feature = "no_nametag"))]
 pub use random::*;
 #[cfg(not(feature = "no_sensors"))]
 pub use sensors::*;
@@ -36,6 +40,10 @@ pub use vibes::*;
 pub const NUM_MODES: usize = {
     let mut count = 1;
     #[cfg(not(feature = "no_nametag"))]
+    {
+        count += 1;
+    }
+    #[cfg(not(feature = "no_i2cutils"))]
     {
         count += 1;
     }
@@ -70,6 +78,8 @@ pub const MODE_NAMES: [&[u8; NUM_CHARS]; NUM_MODES] = [
     b"  NONIK0",
     #[cfg(not(feature = "no_nametag"))]
     b" Nametag",
+    #[cfg(not(feature = "no_i2cutils"))]
+    b"I2C Util",
     #[cfg(not(feature = "no_random"))]
     b"  Random",
     #[cfg(not(feature = "no_sensors"))]
@@ -140,11 +150,12 @@ pub struct Peripherals {
     pub adc: Adc,
     pub buzzer: Tone,
     pub display: Display,
+    pub i2c: I2C,
 }
 
 impl Peripherals {
-    pub fn new(adc: Adc, buzzer: Tone, display: Display) -> Self {
-        Self { adc, buzzer, display }
+    pub fn new(adc: Adc, buzzer: Tone, display: Display, i2c: I2C) -> Self {
+        Self { adc, buzzer, display, i2c }
     }
 }
 
@@ -163,6 +174,8 @@ pub enum Mode {
     Menu(Menu),
     #[cfg(not(feature = "no_nametag"))]
     Nametag(Nametag),
+    #[cfg(not(feature = "no_i2cutils"))]
+    I2CUtils(I2CUtils),
     #[cfg(not(feature = "no_random"))]
     Random(Random),
     #[cfg(not(feature = "no_sensors"))]
@@ -189,6 +202,13 @@ impl Mode {
         {
             if index == i {
                 return Mode::Nametag(Nametag::new_with_settings(&context.settings));
+            }
+            i += 1;
+        }
+        #[cfg(not(feature = "no_i2cutils"))]
+        {
+            if index == i {
+                return Mode::I2CUtils(I2CUtils::new_with_settings(&context.settings));
             }
             i += 1;
         }

@@ -57,6 +57,7 @@ type Display = hcms_29xx::Hcms29xx<
 //     Pin<Output, PB1>, // SDA
 //     CoreClock
 // >;
+type I2C = avrxmega_hal::pac::TWI0;
 type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
 type Event = input::InputEvent;
 type Setting = saved_settings::Setting;
@@ -87,6 +88,7 @@ fn main() -> ! {
     adc.seed_rand();
 
     let eeprom = Eeprom::new(dp.NVMCTRL);
+    let i2c = dp.TWI0;
     let settings = saved_settings::SavedSettings::new(eeprom);
     let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
    
@@ -107,7 +109,7 @@ fn main() -> ! {
     display.display_unblank().unwrap();
 
     let mut context = Context::new(settings);
-    let mut peripherals = Peripherals::new(adc, buzzer, display);
+    let mut peripherals = Peripherals::new(adc, buzzer, display, i2c);
 
     // TODO: improve, apply saved display settings
     let settings = Settings::new_with_settings(&context.settings);

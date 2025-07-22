@@ -4,7 +4,7 @@ target = "avr-specs/avr-attiny1604.json"
 rustflags = ["-C", "target-cpu=attiny1604"]
 
 [target.'cfg(target_arch = "avr")']
-runner = "avrdude -p t1604 -c serialupdi -P COM23 -e -U "
+runner = "avrdude -p t1604 -c serialupdi -P COM3 -e -U "
 
 [unstable]
 build-std = ["core"]

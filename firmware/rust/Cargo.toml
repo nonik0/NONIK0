@@ -13,6 +13,7 @@ bench = false
 [features]
 default = []
 music = [] # TODO
+no_i2cutils = []
 no_nametag = []
 no_random = []
 no_sensors = []
