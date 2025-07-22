@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
 use avrxmega_hal::{
-    clock::Clock, port::{mode::Output, PB0, PB1}
+    clock::Clock, port::{mode::*, PB0, PB1, Pin, PinOps}
 };
 use core::cell::RefCell;
 
-type SdaPin = avrxmega_hal::port::Pin<Output, PB1>;
-type SclPin = avrxmega_hal::port::Pin<Output, PB0>;
+type SDAPIN = PB1;
+type SCLPIN = PB0;
 type TWI = avrxmega_hal::pac::TWI0;
 
 const fn add_read_bit(address: u8) -> u8 {
@@ -16,7 +16,8 @@ const fn add_write_bit(address: u8) -> u8 {
     address & !0x01
 }
 const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
-    ((crate::CoreClock::FREQ / freq) / 2) - (5 + (((crate::CoreClock::FREQ / 1_000_000) * t_rise) / 2000))
+    ((crate::CoreClock::FREQ / freq) / 2)
+        - (5 + (((crate::CoreClock::FREQ / 1_000_000) * t_rise) / 2000))
 }
 
 const I2C_BUFFER_SIZE: usize = 32;
@@ -26,7 +27,6 @@ static I2C_BUFFER: avr_device::interrupt::Mutex<RefCell<I2cBuffer>> =
 struct I2cBuffer {
     data: [u8; I2C_BUFFER_SIZE],
     client_addr: u8,
-    cur_byte: u8,
     bytes_to_process: u8,
     bytes_processed: u8,
 }
@@ -36,7 +36,6 @@ impl I2cBuffer {
         Self {
             data: [0; I2C_BUFFER_SIZE],
             client_addr: address << 1, // byte 0 is rw bit, 0 for write
-            cur_byte: 0,
             bytes_to_process: 0,
             bytes_processed: 0,
         }
@@ -57,6 +56,8 @@ pub enum Error {
     BusError,
     /// An unknown error occured.  The bus might be in an unknown state.
     Unknown,
+    /// The I2C peripheral is not initialized
+    Uninit,
 }
 
 /// I2C Transfer Direction
@@ -71,22 +72,25 @@ pub enum Direction {
 
 pub struct I2c {
     twi: TWI,
-    _sda: SdaPin,
-    _scl: SclPin,
+    _sda: Pin<Input<AnyInput>, SDAPIN>,
+    _scl: Pin<Input<AnyInput>, SCLPIN>,
 }
 
 impl I2c
+where 
+    SDAPIN: PinOps,
+    SCLPIN: PinOps,
 {
     pub fn new(
         twi: TWI,
-        sda: SdaPin,
-        scl: SclPin,
+        sda: Pin<Input<PullUp>, SDAPIN>,
+        scl: Pin<Input<PullUp>, SCLPIN>,
         speed: u32,
     ) -> Self {
         let mut i2c = Self {
             twi,
-            _sda: sda,
-            _scl: scl,
+            _sda: sda.forget_imode(),
+            _scl: scl.forget_imode(),
         };
         i2c.raw_setup(speed);
         i2c
@@ -136,7 +140,9 @@ impl I2c
         let baud = twi_baud(speed, 350) as u8; // hard-coded rise time estimate for now
         self.twi.mbaud().write(|w| w.set(baud));
         self.twi.mctrla().write(|w| w.enable().set_bit());
-        self.twi.mstatus().write(|w| w.busstate().idle().busstate().idle());
+        self.twi
+            .mstatus()
+            .write(|w| w.busstate().idle().busstate().idle());
     }
 
     #[inline]
@@ -144,7 +150,7 @@ impl I2c
         avr_device::interrupt::free(|cs| {
             let mut buffer = I2C_BUFFER.borrow(cs).borrow_mut();
             *buffer = I2cBuffer::new(address);
-        });    
+        });
         Ok(())
     }
 
@@ -179,65 +185,64 @@ impl I2c
 
     fn host_transmit(&mut self, send_stop: bool) -> Result<(), Error> {
         // if disabled, abort
-        if self.twi.mctrla().read().enable().bit_is_clear() {
-            // error uninit
-            return Err(Error::Unknown);
+        if self.twi.mctrla().read().enable().bit_is_clear(){
+            return Err(Error::Uninit);
         }
 
         avr_device::interrupt::free(|cs| {
             let mut buffer = I2C_BUFFER.borrow(cs).borrow_mut();
-
             let mut result = Ok(());
+
             // TODO: how to cleanly pack two bools into u8?
             let mut addr_sent = false;
             let mut data_sent = false;
             loop {
-                let status = self.twi.mstatus().read();
+                //let status = self.twi.mstatus().read();
 
-                if status.busstate().is_unknown() {
-                    // error uninit
-                    return Err(Error::Unknown);
+                if self.twi.mstatus().read().busstate().is_unknown() {
+                    return Err(Error::Uninit);
                 }
 
-                if status.arblost().bit_is_set(){
+                if self.twi.mstatus().read().arblost().bit_is_set() {
                     return Err(Error::ArbitrationLost);
                 }
 
-                if !status.busstate().is_busy() {
+                if !self.twi.mstatus().read().busstate().is_busy() {
                     if !addr_sent {
-                        self.twi.maddr().write(|w| w.set(add_read_bit(buffer.client_addr)));
+                        self.twi
+                            .maddr()
+                            .write(|w| w.set(add_write_bit(buffer.client_addr)));
                         addr_sent = true;
                     } else {
                         // if write interrupt is enabled, write is finished
-                        if status.wif().bit_is_set() {
+                        if self.twi.mstatus().read().wif().bit_is_set() {
                             // check if we got a NACK
-                            if status.rxack().bit_is_set() {
+                            if self.twi.mstatus().read().rxack().bit_is_set() {
                                 if data_sent {
                                     // ignore NACK if all data was sent
                                     if buffer.bytes_to_process != 0 {
                                         result = Err(Error::DataNack);
                                     }
-                                }
-                                else {
+                                } else {
                                     result = Err(Error::AddressNack);
                                 }
                                 break;
                             }
-                        }
-                        else {
+                        } else {
                             if buffer.bytes_to_process != 0 {
-                                self.twi.mdata().write(|w| w.set(buffer.data[buffer.cur_byte as usize]));
-                                buffer.cur_byte += 1;
+                                self.twi
+                                    .mdata()
+                                    .write(|w| w.set(buffer.data[buffer.bytes_processed as usize]));
+                                buffer.bytes_processed += 1;
                                 buffer.bytes_to_process -= 1;
                                 data_sent = true;
-                            }
-                            else {
+                            } else {
                                 break;
                             }
                         }
                     } // write state check
                 } // bus state busy check
-            }  // loop
+            } // loop
 
             if send_stop || result.is_err() {
                 self.twi.mctrlb().write(|w| w.mcmd().stop());
@@ -246,5 +251,4 @@ impl I2c
             result
         })
     }
-
 }

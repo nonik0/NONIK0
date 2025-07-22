@@ -1,12 +1,12 @@
-use crate::{adc::Adc, i2c::I2c, Display, Event, SavedSettings, Setting, tone::Tone, NUM_CHARS};
+use crate::{adc::Adc, tone::Tone, Display, Event, SavedSettings, Setting, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
-mod menu;
 #[cfg(not(feature = "no_i2cutils"))]
+mod i2c_utils;
+mod menu;
+#[cfg(not(feature = "no_nametag"))]
 mod nametag;
 #[cfg(not(feature = "no_random"))]
-mod i2c_utils;
-#[cfg(not(feature = "no_nametag"))]
 mod random;
 #[cfg(not(feature = "no_sensors"))]
 mod sensors;
@@ -19,12 +19,12 @@ mod tunnel;
 #[cfg(not(feature = "no_vibes"))]
 mod vibes;
 
-pub use menu::*;
 #[cfg(not(feature = "no_i2cutils"))]
+pub use i2c_utils::*;
+pub use menu::*;
+#[cfg(not(feature = "no_nametag"))]
 pub use nametag::*;
 #[cfg(not(feature = "no_random"))]
-pub use i2c_utils::*;
-#[cfg(not(feature = "no_nametag"))]
 pub use random::*;
 #[cfg(not(feature = "no_sensors"))]
 pub use sensors::*;
@@ -150,12 +150,24 @@ pub struct Peripherals {
     pub adc: Adc,
     pub buzzer: Tone,
     pub display: Display,
-    pub i2c: I2c,
+    #[cfg(not(feature = "no_i2cutils"))]
+    pub i2c: crate::i2c::I2c,
 }
 
 impl Peripherals {
-    pub fn new(adc: Adc, buzzer: Tone, display: Display, i2c: I2c) -> Self {
-        Self { adc, buzzer, display, i2c }
+    pub fn new(
+        adc: Adc,
+        buzzer: Tone,
+        display: Display,
+        #[cfg(not(feature = "no_i2cutils"))] i2c: crate::i2c::I2c,
+    ) -> Self {
+        Self {
+            adc,
+            buzzer,
+            display,
+            #[cfg(not(feature = "no_i2cutils"))]
+            i2c,
+        }
     }
 }
 

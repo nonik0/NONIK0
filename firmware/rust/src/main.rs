@@ -83,15 +83,18 @@ fn main() -> ! {
     let mut adc = adc::Adc::new(dp.ADC0, dp.SIGROW, dp.VREF);
     adc.seed_rand();
 
+    #[cfg(not(feature = "no_i2cutils"))]
     let i2c = i2c::I2c::new(
         dp.TWI0,
-        pins.pb1.into_output(),
-        pins.pb0.into_output(),
+        pins.pb1.into_pull_up_input(),
+        #[cfg(feature = "board_v0")]
+        pins.pb2.into_pull_up_input(), // dummy pin
+        #[cfg(not(feature = "board_v0"))]
+        pins.pb0.into_pull_up_input(),
         100_000,
     );
 
     let eeprom = Eeprom::new(dp.NVMCTRL);
-    //let i2c = dp.TWI0;
     let settings = saved_settings::SavedSettings::new(eeprom);
     let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
    
@@ -112,7 +115,13 @@ fn main() -> ! {
     display.display_unblank().unwrap();
 
     let mut context = Context::new(settings);
-    let mut peripherals = Peripherals::new(adc, buzzer, display, i2c);
+    let mut peripherals = Peripherals::new(
+        adc,
+        buzzer,
+        display,
+        #[cfg(not(feature = "no_i2cutils"))]
+        i2c,
+    );
 
     // TODO: improve, apply saved display settings
     let settings = Settings::new_with_settings(&context.settings);

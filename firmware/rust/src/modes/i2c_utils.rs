@@ -2,7 +2,7 @@
 
 use super::ModeHandler;
 use crate::{
-    i2c::{Direction, Error, I2c},
+    i2c::{Direction, Error},
     utils::*,
     Context, Event, Peripherals, SavedSettings, NUM_CHARS,
 };
@@ -15,6 +15,7 @@ pub struct I2CUtils {
     scan_direction: Direction,
     scan_error: Option<Error>,
     found_address: u8,
+    display_counter: u8,
 }
 
 impl I2CUtils {
@@ -25,6 +26,7 @@ impl I2CUtils {
             scan_direction: Direction::Write,
             scan_error: None,
             found_address: 0,
+            display_counter: 0,
         }
     }
 }
@@ -38,6 +40,7 @@ impl ModeHandler for I2CUtils {
         peripherals: &mut Peripherals,
     ) {
         let mut update = context.need_update();
+        self.display_counter = self.display_counter.wrapping_add(1);
 
         if let Some(event) = event {
             match event {
@@ -76,7 +79,8 @@ impl ModeHandler for I2CUtils {
                 Ok(false) => {}
                 // client ACK, stop scanning
                 Ok(true) => {
-                    self.found_address = self.scan_address;
+                    //self.found_address = self.scan_address;
+                    self.scan_direction = Direction::Write; // don't scan addr twice if ACK
                 }
                 // error, stop scanning
                 Err(e) => {
@@ -84,6 +88,9 @@ impl ModeHandler for I2CUtils {
                 }
             }
 
+            update = true;
+        }
+        else if self.display_counter == 0 || self.display_counter == 0x7F {
             update = true;
         }
 
@@ -104,11 +111,15 @@ impl ModeHandler for I2CUtils {
 
             let mut buf = [0u8; NUM_CHARS];
             if let Some(error) = self.scan_error {
-                format_uint(&mut buf, b" ERR:", error as u16, 0, None);
+                if self.display_counter < 0x7F {
+                    format_buf(&mut buf, b"ERR:0x", &addr_to_ascii(self.scan_address));
+                } else {
+                    format_uint(&mut buf, b"ERR:  ", error as u16, 0, None);
+                }
             } else if self.found_address > 0 {
-                format_buf(&mut buf, b" ACK:", &addr_to_ascii(self.found_address));
+                format_buf(&mut buf, b"ACK:0x", &addr_to_ascii(self.found_address));
             } else {
-                format_buf(&mut buf, b"SCAN:", &addr_to_ascii(self.scan_address));
+                format_buf(&mut buf, b"SCN:0x", &addr_to_ascii(self.scan_address));
             }
             peripherals.display.print_ascii_bytes(&buf).unwrap();
         }

@@ -22,7 +22,7 @@ no_traffic = []
 no_tunnel = []
 no_vibes = []
 debug_panic = []
-board_v0 = []
+board_v0 = ["no_i2cutils"]
 
 [dependencies]
 embedded-hal = "1.0"
