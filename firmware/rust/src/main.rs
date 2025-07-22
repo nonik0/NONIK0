@@ -5,6 +5,7 @@
 #![feature(type_alias_impl_trait)]
 
 mod adc;
+mod i2c;
 mod input;
 mod modes;
 #[cfg(feature = "debug_panic")]
@@ -24,11 +25,13 @@ use random::Rand;
 
 // using until proper ADC HAL implementation
 type Adc0 = avrxmega_hal::pac::ADC0;
+//type I2C = avrxmega_hal::pac::TWI0;
 type Sigrow = avrxmega_hal::pac::SIGROW;
 type Vref = avrxmega_hal::pac::VREF;
 //type Adc = avrxmega_hal::adc::Adc<CoreClock>;
 type CoreClock = avrxmega_hal::clock::MHz10;
 type Delay = avrxmega_hal::delay::Delay<CoreClock>;
+//type I2c = avrxmega_hal::i2c::I2c<CoreClock>;
 #[cfg(feature = "board_v0")]
 type Display = hcms_29xx::Hcms29xx<
     NUM_CHARS,
@@ -51,13 +54,6 @@ type Display = hcms_29xx::Hcms29xx<
     hcms_29xx::UnconfiguredPin,
     Pin<Output, PB2>,
 >;
-// type I2C = avrxmega_hal::i2c::I2c<
-//     avrxmega_hal::pac::TWI0,
-//     Pin<Output, PB0>, // SCL
-//     Pin<Output, PB1>, // SDA
-//     CoreClock
-// >;
-type I2C = avrxmega_hal::pac::TWI0;
 type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
 type Event = input::InputEvent;
 type Setting = saved_settings::Setting;
@@ -87,8 +83,15 @@ fn main() -> ! {
     let mut adc = adc::Adc::new(dp.ADC0, dp.SIGROW, dp.VREF);
     adc.seed_rand();
 
+    let i2c = i2c::I2c::new(
+        dp.TWI0,
+        pins.pb1.into_output(),
+        pins.pb0.into_output(),
+        100_000,
+    );
+
     let eeprom = Eeprom::new(dp.NVMCTRL);
-    let i2c = dp.TWI0;
+    //let i2c = dp.TWI0;
     let settings = saved_settings::SavedSettings::new(eeprom);
     let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
    

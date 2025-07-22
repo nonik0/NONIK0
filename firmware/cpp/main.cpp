@@ -1,4 +1,5 @@
 #include "HCMS39xx.h"
+#include <Wire.h>
 
 #define NUM_CHARS 8
 
@@ -79,90 +80,39 @@ HCMS39xx::DISPLAY_CURRENT current = HCMS39xx::CURRENT_4_0_mA;
 
 void setup()
 {
-  Serial.begin(9600);
-
-#if defined(RESET_PIN)
-  pinMode(RESET_PIN, OUTPUT);
-  digitalWrite(RESET_PIN, HIGH);
-#endif
-
-#if defined(ARDUINO_ARCH_MEGAAVR)
-  pinMode(BTN1_PIN, INPUT_PULLUP);
-  pinMode(BTN2_PIN, INPUT_PULLUP);
-#endif
-
-#if defined(ARDUINO_AVR_FEATHER32U4)
-  // put into high impedance
-  pinMode(DOUT_PIN, INPUT);
-  pinMode(OSC_PIN, INPUT);
-  pinMode(VLOGIC_PIN, INPUT);
-  pinMode(GND_PIN, INPUT);
-#endif
+  Wire.begin();
 
   hcms29xx.begin();
   hcms29xx.displayUnblank();
   hcms29xx.setIntOsc();
   hcms29xx.setBrightness(brightness);
   hcms29xx.setCurrent(current);
+  
+  hcms29xx.print("I2C SCAN");
+  delay(1000);
 }
 
-uint32_t count1 = 0;
-uint32_t count2 = 0;
 void loop()
 {
-#if defined(ARDUINO_ARCH_MEGAAVR)
-  if (digitalRead(BTN1_PIN) == LOW)
+  hcms29xx.clear();
+  hcms29xx.print("SCANNING");
+  delay(1000);
+
+  int deviceCount = 0;
+  for (byte address = 1; address < 127; address++)
   {
-    tone(BUZZ_PIN, 4000, 500);
-    count1 = 0;
-
-    brightness = (brightness + 1) % 16;
-    hcms29xx.setBrightness(brightness);
-    char buffer[10];
-    snprintf(buffer, sizeof(buffer), "BRIGHT%02d", brightness);
-    hcms29xx.print(buffer);
-    delay(500);
+    Wire.beginTransmission(address);
+    byte error = Wire.endTransmission();
+    
+    if (error == 0)
+    {
+      deviceCount++;
+      
+      char buffer[10];
+      snprintf(buffer, sizeof(buffer), "ACK:0x%02X", address);
+      hcms29xx.clear();
+      hcms29xx.print(buffer);
+      delay(2000);
+    }
   }
-
-  if (digitalRead(BTN2_PIN) == LOW)
-  {
-    tone(BUZZ_PIN, 6000, 500);
-    count2 = 0;
-
-    if (current == HCMS39xx::CURRENT_4_0_mA)
-    {
-      current = HCMS39xx::CURRENT_6_4_mA;
-      hcms29xx.print("CUR6.4mA");
-    }
-    else if (current == HCMS39xx::CURRENT_6_4_mA)
-    {
-      current = HCMS39xx::CURRENT_9_3_mA;
-      hcms29xx.print("CUR9.3mA");
-    }
-    else if (current == HCMS39xx::CURRENT_9_3_mA)
-    {
-      current = HCMS39xx::CURRENT_12_8_mA;
-      hcms29xx.print("CR12.8mA");
-    }
-    else if (current == HCMS39xx::CURRENT_12_8_mA)
-    {
-      current = HCMS39xx::CURRENT_4_0_mA;
-      hcms29xx.print("CUR4.0mA");
-    }
-    hcms29xx.setCurrent(current);
-    delay(500);
-  }
-#endif
-
-  count1 = (count1 + 1) % 10000;
-
-  if (random(0, 2) % 2 == 0)
-  {
-    count2 = (count2 + 1) % 10000;
-  }
-
-  // shift count1 4 decimal places to the left
-  uint32_t displayNumber = count1 * 10000 + count2;
-  hcms29xx.print(displayNumber);
-  delay(5);
 }

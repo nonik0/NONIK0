@@ -1,4 +1,4 @@
-use crate::{adc::Adc, Display, Event, I2C, SavedSettings, Setting, tone::Tone, NUM_CHARS};
+use crate::{adc::Adc, i2c::I2c, Display, Event, SavedSettings, Setting, tone::Tone, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
 mod menu;
@@ -150,11 +150,11 @@ pub struct Peripherals {
     pub adc: Adc,
     pub buzzer: Tone,
     pub display: Display,
-    pub i2c: I2C,
+    pub i2c: I2c,
 }
 
 impl Peripherals {
-    pub fn new(adc: Adc, buzzer: Tone, display: Display, i2c: I2C) -> Self {
+    pub fn new(adc: Adc, buzzer: Tone, display: Display, i2c: I2c) -> Self {
         Self { adc, buzzer, display, i2c }
     }
 }
