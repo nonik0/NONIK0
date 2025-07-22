@@ -7,14 +7,12 @@
 mod adc;
 mod input;
 mod modes;
-mod music;
 #[cfg(feature = "debug_panic")]
 mod panic;
 #[cfg(not(feature = "debug_panic"))]
 use panic_halt as _;
 mod random;
 mod saved_settings;
-//#[cfg(feature = "tone")]
 mod tone;
 mod utils;
 
@@ -23,7 +21,6 @@ use avrxmega_hal::port::{mode::Output, *};
 use embedded_hal::delay::DelayNs;
 use modes::*;
 use random::Rand;
-use tone::Tone;
 
 // using until proper ADC HAL implementation
 type Adc0 = avrxmega_hal::pac::ADC0;
@@ -32,6 +29,7 @@ type Vref = avrxmega_hal::pac::VREF;
 //type Adc = avrxmega_hal::adc::Adc<CoreClock>;
 type CoreClock = avrxmega_hal::clock::MHz10;
 type Delay = avrxmega_hal::delay::Delay<CoreClock>;
+#[cfg(feature = "board_v0")]
 type Display = hcms_29xx::Hcms29xx<
     NUM_CHARS,
     Pin<Output, PA6>,
@@ -42,6 +40,23 @@ type Display = hcms_29xx::Hcms29xx<
     hcms_29xx::UnconfiguredPin,
     Pin<Output, PB0>,
 >;
+#[cfg(not(feature = "board_v0"))]
+type Display = hcms_29xx::Hcms29xx<
+    NUM_CHARS,
+    Pin<Output, PA6>,
+    Pin<Output, PA4>,
+    Pin<Output, PA3>,
+    Pin<Output, PA2>,
+    Pin<Output, PA1>,
+    hcms_29xx::UnconfiguredPin,
+    Pin<Output, PB2>,
+>;
+// type I2C = avrxmega_hal::i2c::I2c<
+//     avrxmega_hal::pac::TWI0,
+//     Pin<Output, PB0>, // SCL
+//     Pin<Output, PB1>, // SDA
+//     CoreClock
+// >;
 type DisplayPeakCurrent = hcms_29xx::PeakCurrent;
 type Event = input::InputEvent;
 type Setting = saved_settings::Setting;
@@ -73,12 +88,8 @@ fn main() -> ! {
 
     let eeprom = Eeprom::new(dp.NVMCTRL);
     let settings = saved_settings::SavedSettings::new(eeprom);
-
-    // TODO: fix tone feature
-    let mut buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
-
-
-    
+    let buzzer = tone::Tone::new(dp.TCB0, pins.pa5.into_output());
+   
     let mut display = Display::new(
         pins.pa6.into_output(),
         pins.pa4.into_output(),
@@ -86,14 +97,14 @@ fn main() -> ! {
         pins.pa2.into_output(),
         pins.pa1.into_output(),
         hcms_29xx::UnconfiguredPin,
+        #[cfg(feature = "board_v0")]
         pins.pb0.into_output(),
+        #[cfg(not(feature = "board_v0"))]
+        pins.pb2.into_output(),
     )
     .unwrap();
     display.begin().unwrap();
     display.display_unblank().unwrap();
-
-
-    music::play_song(&mut buzzer, &mut display);
 
     let mut context = Context::new(settings);
     let mut peripherals = Peripherals::new(adc, buzzer, display);
@@ -115,14 +126,12 @@ fn main() -> ! {
                     context.to_menu();
                 }
             }
-            //#[cfg(feature = "tone")]
             // higher/shorter tone on button press
             Some(Event::LeftPressed) | Some(Event::RightPressed) => {
                 if context.tone_enabled {
                     peripherals.buzzer.tone(5000, 5);
                 }
             }
-            //#[cfg(feature = "tone")]
             // lower/longer tone on button held press
             Some(Event::LeftHeld) | Some(Event::RightHeld) => {
                 if context.tone_enabled {
