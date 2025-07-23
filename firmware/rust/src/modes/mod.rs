@@ -107,7 +107,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         let mut saved_index = settings.read_setting_byte(Setting::LastMode);
         if saved_index >= NUM_MODES as u8 {
-            saved_index = 1;
+            saved_index = 2;
         }
         Self {
             mode_init: false,

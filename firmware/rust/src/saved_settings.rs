@@ -8,6 +8,7 @@ pub enum Setting {
     LastMode = 0x0C,
     RandomPage = 0x0D,
     SensorPage = 0x0E,
+    I2CPage = 0x0F,
 }
 
 pub struct SavedSettings(crate::Eeprom);
