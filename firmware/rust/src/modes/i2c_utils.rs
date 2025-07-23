@@ -4,11 +4,12 @@ use super::ModeHandler;
 use crate::{
     i2c::{Direction, Error, I2c},
     utils::*,
-    Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS,
+    Context, Event, Peripherals, SavedSettings, Setting, I2C_BUS_SPEED, NUM_CHARS,
 };
 
 const I2C_MIN_ADDRESS: u8 = 0x02;
 const I2C_MAX_ADDRESS: u8 = 0x77;
+const CLIENT_ADDRESS: u8 = 0x13;
 
 #[derive(Clone, Copy)]
 pub enum I2CUtil {
@@ -88,8 +89,8 @@ impl I2CUtils {
     fn format_scan_result(&self, buf: &mut [u8]) {
         fn u4_to_hex(b: u8) -> u8 {
             match b {
-                x if x < 0xa => 0x30 + x,
-                x if x < 0x10 => 0x57 + x,
+                x if x < 0x0A => b'0' + x,
+                x if x < 0x10 => b'A' + x,
                 _ => b'?',
             }
         }
@@ -144,9 +145,16 @@ impl ModeHandler for I2CUtils {
                     return;
                 }
                 Event::RightHeld => {
+                    peripherals.i2c.end();
                     self.cur_util = match self.cur_util {
-                        I2CUtil::Scan => I2CUtil::Receive,
-                        I2CUtil::Receive => I2CUtil::Scan,
+                        I2CUtil::Scan => {
+                            peripherals.i2c.setup_client(CLIENT_ADDRESS);
+                            I2CUtil::Receive
+                        },
+                        I2CUtil::Receive => {
+                            peripherals.i2c.setup_host(I2C_BUS_SPEED);
+                            I2CUtil::Scan
+                        }
                     };
                     context
                         .settings
