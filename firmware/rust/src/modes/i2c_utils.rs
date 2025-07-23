@@ -8,7 +8,7 @@ use crate::{
 };
 
 const I2C_MIN_ADDRESS: u8 = 0x02;
-const I2C_MAX_ADDRESS: u8 = 0x77;
+const I2C_MAX_ADDRESS: u8 = 0x7F;
 const CLIENT_ADDRESS: u8 = 0x13;
 
 #[derive(Clone, Copy)]
@@ -125,13 +125,23 @@ impl I2CUtils {
         self.recv_len = 0;
         self.found_address = 0;
 
-        i2c.setup_host(I2C_BUS_SPEED);
+        i2c.setup_client(CLIENT_ADDRESS);
     }
 
-    fn receive_update(&mut self, _i2c: &mut I2c) -> bool {
-        // This is a placeholder for the receive update logic.
-        // Implement the logic to handle receiving data from an I2C device.
-        false
+    fn receive_update(&mut self, i2c: &mut I2c) -> bool {
+        if !i2c.available_client() > 0 {
+            false
+        } else {
+            // read data from I2C client
+            while let Some(data) = i2c.read_client() {
+                if self.recv_len < NUM_CHARS as u8 {
+                    self.recv_data[self.recv_len as usize] = data;
+                    self.recv_len += 1;
+                }
+            }
+
+            true
+        }
     }
 
     fn format_receive_result(&self, buf: &mut [u8]) {
@@ -141,6 +151,10 @@ impl I2CUtils {
             let msg = b"RCV:0x13";
             let len = buf.len().min(msg.len());
             buf[..len].copy_from_slice(&msg[..len]);
+        }
+        else {
+            let len = buf.len().min(self.recv_data.len());
+            buf[..len].copy_from_slice(&self.recv_data[..len]);
         }
     }
 }
@@ -175,9 +189,10 @@ impl ModeHandler for I2CUtils {
                     self.util_init = false;
                 }
                 Event::RightPressed => {
-                    // clear paused state
+                    // clear any paused state
                     self.found_address = 0;
                     self.scan_error = None;
+                    self.recv_len = 0;
                 }
                 _ => {}
             }

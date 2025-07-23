@@ -32,10 +32,14 @@ struct I2cState {
     client_address: u8,
     _sda: Pin<Input<AnyInput>, SDAPIN>,
     _scl: Pin<Input<AnyInput>, SCLPIN>,
+
     // buffer that holds data to send and received data
     data: [u8; I2C_BUFFER_SIZE],
     bytes_to_process: u8,
     bytes_processed: u8,
+    bytes_transmitted: u8, // client response
+    client_check_nak: bool,
+    host_data_sent: bool,
 }
 
 impl I2cState {
@@ -56,6 +60,9 @@ impl I2cState {
             client_address: address << 1, // byte 0 is rw bit, 0 for write
             bytes_to_process: 0,
             bytes_processed: 0,
+            bytes_transmitted: 0,
+            client_check_nak: false,
+            host_data_sent: false,
         }
     }
 }
@@ -130,18 +137,22 @@ where
         }
     }
 
-    pub fn write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Error> {
+    pub fn write_host(&mut self, address: u8, bytes: &[u8]) -> Result<(), Error> {
         self.raw_start(address, Direction::Write)?;
         self.raw_write(bytes)?;
         self.raw_stop()?;
         Ok(())
     }
 
-    pub fn read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Error> {
+    pub fn read_host(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Error> {
         self.raw_start(address, Direction::Read)?;
         self.raw_read(buffer, true)?;
         self.raw_stop()?;
         Ok(())
+    }
+
+    pub fn available_client(&self) -> u8 {
+        self.raw_available_client()
     }
 
     pub fn read_client(&mut self) -> Option<u8> {
@@ -220,8 +231,20 @@ where
     }
 
     #[inline]
-    fn raw_read(&mut self, _buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
-        Ok(())
+    fn raw_read(&mut self, buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
+        avr_device::interrupt::free(|cs| {
+            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+            let state = state_opt.as_mut().unwrap();
+
+            state.bytes_processed = 0;
+            state.bytes_to_process = buffer.len() as u8;
+            if state.bytes_to_process > I2C_BUFFER_SIZE as u8 {
+                state.bytes_to_process = I2C_BUFFER_SIZE as u8;
+            }
+
+            // TODO: receive bytes blocking
+            Ok(())
+        })
     }
 
     #[inline]
@@ -261,6 +284,15 @@ where
                     .set_bit()
             });
         });
+    }
+
+    fn raw_available_client(&self) -> u8 {
+        avr_device::interrupt::free(|cs| {
+            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+            let state = state_opt.as_mut().unwrap();
+
+            state.bytes_to_process - state.bytes_processed
+        })
     }
 
     fn raw_read_client(&mut self) -> Option<u8> {
@@ -368,14 +400,130 @@ where
     }
 }
 
-// #[avr_device::interrupt(attiny1604)]
-// fn TWI0_TWIS_vect() {
-//     avr_device::interrupt::free(|cs| {
-//         let mut buffer = I2C_BUFFER.borrow(cs).borrow_mut();
+#[avr_device::interrupt(attiny1604)]
+fn TWI0_TWIS() {
+    avr_device::interrupt::free(|cs| {
+        let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+        let state = state_opt.as_mut().unwrap();
 
-//         // head => bytes_to_process
-//         // tail => bytes_processed
+        enum Response {
+            None,
+            AckContinue,
+            AckComplete,
+            NakComplete,
+        }
+        let mut response = Response::None;
+        let client_status = state.twi.sstatus().read();
 
-//         let status = self.twi.mstatus().read();
-//     });
-// }
+        // address or stop condition detected
+        if client_status.apif().bit_is_set() {
+            // host is done sending data
+            if state.host_data_sent {
+                state.host_data_sent = false;
+
+                // TODO: callback
+                // if state.on_receive {
+                //     on_receive(state.bytes_to_process);
+                // }
+            }
+
+            // address detected (START/RESTART condition)
+            if client_status.ap().bit_is_set() {
+                state.client_address = state.twi.sdata().read().bits();
+                state.bytes_to_process = 0;
+                state.bytes_processed = 0;
+
+                // host is reading
+                if client_status.dir().bit_is_set() {
+                    // TODO: callback
+                    // if state.on_request {
+                    //     state.on_request();
+                    // }
+
+                    // response based on whether there is data to send
+                    response = if state.bytes_to_process == 0 {
+                        Response::NakComplete
+                    } else {
+                        Response::AckContinue
+                    };
+                }
+                // host is writing
+                else {
+                    state.host_data_sent = true;
+                    response = Response::AckContinue;
+                }
+            }
+            // STOP condition detected
+            else {
+                state.bytes_to_process = 0;
+                state.bytes_processed = 0;
+                response = Response::AckComplete;
+            }
+        }
+        // data received
+        else if client_status.dif().bit_is_set() {
+            // host is reading
+            if client_status.dir().bit_is_set() {
+                // collision detected
+                let nak = state.client_check_nak && client_status.rxack().bit_is_set();
+                let collision = client_status.coll().bit_is_set();
+                if nak || collision {
+                    state.client_check_nak = false;
+                    state.bytes_to_process = 0;
+                    response = Response::AckComplete;
+                }
+                // data ACKed, continue sending
+                else {
+                    state.bytes_transmitted += 1;
+                    state.client_check_nak = true;
+
+                    // send more data
+                    if state.bytes_processed < state.bytes_to_process {
+                        let data = state.data[state.bytes_processed as usize];
+                        state.twi.sdata().write(|w| w.set(data));
+                        state.bytes_processed += 1;
+                        response = Response::AckContinue;
+                    }
+                    // no more data to send
+                    else {
+                        state.bytes_to_process = 0;
+                        response = Response::AckComplete;
+                    }
+                }
+            }
+            // host is writing
+            else {
+                let data = state.twi.sdata().read().bits();
+
+                // check if buffer has space
+                if state.bytes_to_process < I2C_BUFFER_SIZE as u8 {
+                    state.data[state.bytes_to_process as usize] = data;
+                    state.bytes_to_process += 1;
+
+                    // response based on whether buffer is full
+                    response = if state.bytes_to_process == I2C_BUFFER_SIZE as u8 {
+                        Response::NakComplete
+                    } else {
+                        Response::AckContinue
+                    };
+                }
+            }
+        }
+
+        match response {
+            Response::None => {}
+            Response::AckContinue => {
+                state.twi.sctrlb().write(|w| w.scmd().response());
+            }
+            Response::AckComplete => {
+                state.twi.sctrlb().write(|w| w.scmd().comptrans());
+            }
+            Response::NakComplete => {
+                state
+                    .twi
+                    .sctrlb()
+                    .write(|w| w.ackact().set_bit().scmd().comptrans());
+            }
+        }
+    });
+}
