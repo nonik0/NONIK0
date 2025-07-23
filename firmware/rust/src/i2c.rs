@@ -120,15 +120,19 @@ where
         Self {}
     }
 
-    pub fn setup_host(&mut self, speed: u32) {
+    pub fn end(&mut self) {
+        self.raw_end();
+        self.raw_end_client();
+    }
+
+    //
+    // HOST PUBLIC
+    //
+    pub fn host_setup(&mut self, speed: u32) {
         self.raw_setup(speed);
     }
 
-    pub fn setup_client(&mut self, address: u8) {
-        self.raw_setup_client(address);
-    }
-
-    pub fn ping_device(&mut self, address: u8, direction: Direction) -> Result<bool, Error> {
+    pub fn host_ping_device(&mut self, address: u8, direction: Direction) -> Result<bool, Error> {
         self.raw_start(address, direction)?;
         match self.raw_stop() {
             Ok(_) => Ok(true),
@@ -137,29 +141,21 @@ where
         }
     }
 
-    pub fn write_host(&mut self, address: u8, bytes: &[u8]) -> Result<(), Error> {
+    pub fn host_write(&mut self, address: u8, bytes: &[u8]) -> Result<(), Error> {
         self.raw_start(address, Direction::Write)?;
         self.raw_write(bytes)?;
         self.raw_stop()?;
         Ok(())
     }
 
-    pub fn read_host(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Error> {
+    pub fn host_read(&mut self, address: u8, buffer: &mut [u8]) -> Result<(), Error> {
         self.raw_start(address, Direction::Read)?;
         self.raw_read(buffer, true)?;
         self.raw_stop()?;
         Ok(())
     }
 
-    pub fn available_client(&self) -> u8 {
-        self.raw_available_client()
-    }
-
-    pub fn read_client(&mut self) -> Option<u8> {
-        self.raw_read_client()
-    }
-
-    pub fn write_read(
+    pub fn host_write_read(
         &mut self,
         address: u8,
         bytes: &[u8],
@@ -173,9 +169,19 @@ where
         Ok(())
     }
 
-    pub fn end(&mut self) {
-        self.raw_end();
-        self.raw_end_client();
+    //
+    // CLIENT PUBLIC
+    //
+    pub fn client_setup(&mut self, address: u8) {
+        self.raw_setup_client(address);
+    }
+
+    pub fn client_available(&self) -> u8 {
+        self.raw_available_client()
+    }
+
+    pub fn client_read(&mut self) -> Option<u8> {
+        self.raw_read_client()
     }
 
     //
@@ -231,20 +237,21 @@ where
     }
 
     #[inline]
-    fn raw_read(&mut self, buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
-        avr_device::interrupt::free(|cs| {
-            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
-            let state = state_opt.as_mut().unwrap();
+    fn raw_read(&mut self, _buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
+        // avr_device::interrupt::free(|cs| {
+        //     let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+        //     let state = state_opt.as_mut().unwrap();
 
-            state.bytes_processed = 0;
-            state.bytes_to_process = buffer.len() as u8;
-            if state.bytes_to_process > I2C_BUFFER_SIZE as u8 {
-                state.bytes_to_process = I2C_BUFFER_SIZE as u8;
-            }
+        //     state.bytes_processed = 0;
+        //     state.bytes_to_process = buffer.len() as u8;
+        //     if state.bytes_to_process > I2C_BUFFER_SIZE as u8 {
+        //         state.bytes_to_process = I2C_BUFFER_SIZE as u8;
+        //     }
 
-            // TODO: receive bytes blocking
-            Ok(())
-        })
+        //     // TODO: receive bytes blocking
+        //     Ok(())
+        // })
+        Ok(())
     }
 
     #[inline]
@@ -305,6 +312,9 @@ where
                 state.bytes_processed += 1;
                 Some(data)
             } else {
+                // clear buffer once all data is read (TODO: not needed with callback)
+                state.bytes_to_process = 0;
+                state.bytes_processed = 0;
                 None
             }
         })
@@ -455,8 +465,9 @@ fn TWI0_TWIS() {
             }
             // STOP condition detected
             else {
-                state.bytes_to_process = 0;
-                state.bytes_processed = 0;
+                // TODO: callback
+                // state.bytes_to_process = 0;
+                // state.bytes_processed = 0;
                 response = Response::AckComplete;
             }
         }

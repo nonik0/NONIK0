@@ -35,9 +35,8 @@ pub struct I2CUtils {
 impl I2CUtils {
     pub fn new_with_settings(settings: &SavedSettings) -> Self {
         let saved_util = match settings.read_setting_byte(Setting::I2CPage) {
-            0 => I2CUtil::Scan,
-            1 => I2CUtil::Receive,
-            _ => I2CUtil::Scan, // default to Scan if invalid
+            0 => I2CUtil::Receive,
+            _ => I2CUtil::Receive,
         };
 
         Self {
@@ -60,7 +59,7 @@ impl I2CUtils {
         self.scan_error = None;
         self.found_address = 0;
 
-        i2c.setup_host(I2C_BUS_SPEED);
+        i2c.host_setup(I2C_BUS_SPEED);
     }
 
     fn scan_update(&mut self, i2c: &mut I2c) -> bool {
@@ -81,7 +80,7 @@ impl I2CUtils {
         }
 
         // ping device at address
-        match i2c.ping_device(self.scan_address, self.scan_direction) {
+        match i2c.host_ping_device(self.scan_address, self.scan_direction) {
             // no client ACK, continue scanning
             Ok(false) => {}
             // client ACK, stop scanning
@@ -97,7 +96,7 @@ impl I2CUtils {
         true
     }
 
-    fn format_scan_result(&self, buf: &mut [u8]) {
+    fn format_scan_result(&self, buf: &mut [u8; NUM_CHARS]) {
         fn u4_to_hex(b: u8) -> u8 {
             match b {
                 x if x < 0x0A => b'0' + x,
@@ -125,36 +124,39 @@ impl I2CUtils {
         self.recv_len = 0;
         self.found_address = 0;
 
-        i2c.setup_client(CLIENT_ADDRESS);
+        i2c.client_setup(CLIENT_ADDRESS);
     }
 
     fn receive_update(&mut self, i2c: &mut I2c) -> bool {
-        if !i2c.available_client() > 0 {
-            false
-        } else {
-            // read data from I2C client
-            while let Some(data) = i2c.read_client() {
-                if self.recv_len < NUM_CHARS as u8 {
-                    self.recv_data[self.recv_len as usize] = data;
-                    self.recv_len += 1;
-                }
-            }
-
-            true
+        // detect pause state
+        if self.recv_len > 0 {
+            return false;
         }
+
+        // read data from I2C client
+        while let Some(data) = i2c.client_read() {
+            if self.recv_len < NUM_CHARS as u8 {
+                self.recv_data[self.recv_len as usize] = data;
+                self.recv_len += 1;
+            }
+        }
+
+        self.recv_len > 0
     }
 
-    fn format_receive_result(&self, buf: &mut [u8]) {
-        // This is a placeholder for the receive result formatting logic.
-        // Implement the logic to format the received data into the buffer.
+    fn format_receive_result(&self, buf: &mut [u8; NUM_CHARS]) {
         if self.recv_len == 0 {
             let msg = b"RCV:0x13";
             let len = buf.len().min(msg.len());
             buf[..len].copy_from_slice(&msg[..len]);
-        }
-        else {
-            let len = buf.len().min(self.recv_data.len());
-            buf[..len].copy_from_slice(&self.recv_data[..len]);
+        } else {
+            for index in 0..NUM_CHARS {
+                buf[index] = if index < self.recv_len as usize {
+                    self.recv_data[index]
+                } else {
+                    b' '
+                };
+            }
         }
     }
 }
