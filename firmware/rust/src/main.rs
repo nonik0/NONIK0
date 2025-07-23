@@ -88,9 +88,6 @@ fn main() -> ! {
     let i2c = i2c::I2c::new(
         dp.TWI0,
         pins.pb1.into_pull_up_input(),
-        #[cfg(feature = "board_v0")]
-        pins.pb2.into_pull_up_input(), // dummy pin
-        #[cfg(not(feature = "board_v0"))]
         pins.pb0.into_pull_up_input(),
         I2C_BUS_SPEED,
     );

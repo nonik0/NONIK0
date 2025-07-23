@@ -20,6 +20,7 @@ pub enum I2CUtil {
 
 pub struct I2CUtils {
     cur_util: I2CUtil,
+    util_init: bool,
     // scan data
     scan_address: u8,
     scan_direction: Direction,
@@ -41,6 +42,7 @@ impl I2CUtils {
 
         Self {
             cur_util: saved_util,
+            util_init: false,
             // hacky way to progress to scan first address as logic increments target first
             scan_address: I2C_MIN_ADDRESS - 1,
             scan_direction: Direction::Write,
@@ -50,6 +52,15 @@ impl I2CUtils {
             found_address: 0,
             display_counter: 0,
         }
+    }
+
+    fn scan_init(&mut self, i2c: &mut I2c) {
+        self.scan_address = I2C_MIN_ADDRESS - 1; // reset to first address
+        self.scan_direction = Direction::Write;
+        self.scan_error = None;
+        self.found_address = 0;
+
+        i2c.setup_host(I2C_BUS_SPEED);
     }
 
     fn scan_update(&mut self, i2c: &mut I2c) -> bool {
@@ -110,6 +121,13 @@ impl I2CUtils {
         }
     }
 
+    fn receive_init(&mut self, i2c: &mut I2c) {
+        self.recv_len = 0;
+        self.found_address = 0;
+
+        i2c.setup_host(I2C_BUS_SPEED);
+    }
+
     fn receive_update(&mut self, _i2c: &mut I2c) -> bool {
         // This is a placeholder for the receive update logic.
         // Implement the logic to handle receiving data from an I2C device.
@@ -147,19 +165,14 @@ impl ModeHandler for I2CUtils {
                 Event::RightHeld => {
                     peripherals.i2c.end();
                     self.cur_util = match self.cur_util {
-                        I2CUtil::Scan => {
-                            peripherals.i2c.setup_client(CLIENT_ADDRESS);
-                            I2CUtil::Receive
-                        },
-                        I2CUtil::Receive => {
-                            peripherals.i2c.setup_host(I2C_BUS_SPEED);
-                            I2CUtil::Scan
-                        }
+                        I2CUtil::Scan => I2CUtil::Receive,
+                        I2CUtil::Receive => I2CUtil::Scan,
                     };
                     context
                         .settings
                         .save_setting_byte(Setting::I2CPage, self.cur_util as u8);
                     update = true;
+                    self.util_init = false;
                 }
                 Event::RightPressed => {
                     // clear paused state
@@ -170,7 +183,16 @@ impl ModeHandler for I2CUtils {
             }
         }
 
-        // if update not pending
+        // initialize I2C utility if not already initialized
+        if !self.util_init {
+            match self.cur_util {
+                I2CUtil::Scan => self.scan_init(&mut peripherals.i2c),
+                I2CUtil::Receive => self.receive_init(&mut peripherals.i2c),
+            };
+            self.util_init = true;
+        }
+
+        // update utility if no other pending update
         if !update {
             update = match self.cur_util {
                 I2CUtil::Scan => self.scan_update(&mut peripherals.i2c),
