@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use avrxmega_hal::{
-    clock::Clock, port::{mode::*, PB0, PB1, Pin, PinOps}
+    clock::Clock,
+    port::{mode::*, Pin, PinOps, PB0, PB1},
 };
 use core::cell::RefCell;
 
@@ -58,6 +59,8 @@ pub enum Error {
     Unknown,
     /// The I2C peripheral is not initialized
     Uninit,
+    /// Buffer overflow, too many bytes to process
+    BufferOverflow,
 }
 
 /// I2C Transfer Direction
@@ -77,7 +80,7 @@ pub struct I2c {
 }
 
 impl I2c
-where 
+where
     SDAPIN: PinOps,
     SCLPIN: PinOps,
 {
@@ -97,11 +100,9 @@ where
     }
 
     pub fn ping_device(&mut self, address: u8, direction: Direction) -> Result<bool, Error> {
-        match self.raw_start(address, direction) {
-            Ok(_) => {
-                self.raw_stop()?;
-                Ok(true)
-            }
+        self.raw_start(address, direction)?;
+        match self.raw_stop() {
+            Ok(_) => Ok(true),
             Err(Error::AddressNack) => Ok(false),
             Err(e) => Err(e),
         }
@@ -150,27 +151,25 @@ where
         avr_device::interrupt::free(|cs| {
             let mut buffer = I2C_BUFFER.borrow(cs).borrow_mut();
             *buffer = I2cBuffer::new(address);
-        });
-        Ok(())
+            Ok(())
+        })
     }
 
     #[inline]
     fn raw_write(&mut self, bytes: &[u8]) -> Result<(), Error> {
-        let mut result = Ok(());
         avr_device::interrupt::free(|cs| {
             let mut buffer = I2C_BUFFER.borrow(cs).borrow_mut();
             let buf_start = buffer.bytes_to_process as usize;
             let buf_end = buf_start + bytes.len() as usize;
 
             if buf_end >= I2C_BUFFER_SIZE {
-                result = Err(Error::Unknown);
-                return;
+                return Err(Error::BufferOverflow);
             }
 
             buffer.data[buf_start..buf_end].copy_from_slice(bytes);
-        });
-
-        result
+            buffer.bytes_to_process += bytes.len() as u8;
+            Ok(())
+        })
     }
 
     #[inline]
@@ -185,7 +184,7 @@ where
 
     fn host_transmit(&mut self, send_stop: bool) -> Result<(), Error> {
         // if disabled, abort
-        if self.twi.mctrla().read().enable().bit_is_clear(){
+        if self.twi.mctrla().read().enable().bit_is_clear() {
             return Err(Error::Uninit);
         }
 
@@ -197,50 +196,56 @@ where
             let mut addr_sent = false;
             let mut data_sent = false;
             loop {
-                //let status = self.twi.mstatus().read();
+                let status = self.twi.mstatus().read();
+                let state = status.busstate();
 
-                if self.twi.mstatus().read().busstate().is_unknown() {
+                if state.is_unknown() {
                     return Err(Error::Uninit);
                 }
 
-                if self.twi.mstatus().read().arblost().bit_is_set() {
+                if status.arblost().bit_is_set() {
                     return Err(Error::ArbitrationLost);
                 }
 
-                if !self.twi.mstatus().read().busstate().is_busy() {
-                    if !addr_sent {
-                        self.twi
-                            .maddr()
-                            .write(|w| w.set(add_write_bit(buffer.client_addr)));
-                        addr_sent = true;
-                    } else {
-                        // if write interrupt is enabled, write is finished
-                        if self.twi.mstatus().read().wif().bit_is_set() {
-                            // check if we got a NACK
-                            if self.twi.mstatus().read().rxack().bit_is_set() {
-                                if data_sent {
-                                    // ignore NACK if all data was sent
-                                    if buffer.bytes_to_process != 0 {
-                                        result = Err(Error::DataNack);
-                                    }
-                                } else {
-                                    result = Err(Error::AddressNack);
-                                }
-                                break;
+                // wait for bus to be ready
+                if state.is_busy() {
+                    continue;
+                }
+
+                // send address first
+                if !addr_sent {
+                    self.twi
+                        .maddr()
+                        .write(|w| w.set(add_write_bit(buffer.client_addr)));
+                    addr_sent = true;
+                    continue;
+                }
+                    
+                // wait for write to complete
+                if status.wif().bit_is_set() {
+                    // check if we got a NACK
+                    if status.rxack().bit_is_set() {
+                        if data_sent {
+                            // ignore NACK if all data was sent
+                            if buffer.bytes_to_process != 0 {
+                                result = Err(Error::DataNack);
                             }
                         } else {
-                            if buffer.bytes_to_process != 0 {
-                                self.twi
-                                    .mdata()
-                                    .write(|w| w.set(buffer.data[buffer.bytes_processed as usize]));
-                                buffer.bytes_processed += 1;
-                                buffer.bytes_to_process -= 1;
-                                data_sent = true;
-                            } else {
-                                break;
-                            }
+                            result = Err(Error::AddressNack);
                         }
-                    } // write state check
+                        break;
+                    // else check if more bytes to sen
+                    } else if buffer.bytes_to_process > 0 {
+                        self.twi.mdata().write(|w| {
+                            w.set(buffer.data[buffer.bytes_processed as usize])
+                        });
+                        buffer.bytes_processed += 1;
+                        buffer.bytes_to_process -= 1;
+                        data_sent = true;
+                    // break when no more bytes to send
+                    } else {
+                        break;
+                    }
                 } // bus state busy check
             } // loop
 
