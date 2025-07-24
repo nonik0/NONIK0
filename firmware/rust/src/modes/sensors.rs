@@ -44,9 +44,14 @@ impl Sensors {
 
     pub fn new_with_settings(settings: &SavedSettings) -> Self {
         let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
-            1 => AdcChannel::Vext,
-            2 => AdcChannel::Vref,
-            3 => AdcChannel::Gnd,
+            1 => AdcChannel::Vref,
+            2 => AdcChannel::Gnd,
+            #[cfg(not(feature = "board_v0"))]
+            3 => AdcChannel::Vsda,
+            #[cfg(not(feature = "board_v0"))]
+            4 => AdcChannel::Vscl,
+            #[cfg(feature = "board_v0")]
+            3 => AdcChannel::Vext,
             _ => AdcChannel::Temp,
         };
 
@@ -117,10 +122,29 @@ impl Sensors {
                 0,
                 Some(if self.show_tempf { b"\x98F" } else { b"\x98C" }.as_slice()),
             ),
+            #[cfg(feature = "board_v0")]
             (AdcChannel::Vext, true) => (b"Ve:", value, 0, None),
+            #[cfg(feature = "board_v0")]
             (AdcChannel::Vext, false) | (AdcChannel::Vref, false) | (AdcChannel::Gnd, false) => (
                 match self.cur_channel {
                     AdcChannel::Vext => b"Ve:",
+                    AdcChannel::Vref => b"Vr:",
+                    AdcChannel::Gnd => b"Vg:",
+                    _ => unreachable!(),
+                },
+                value,
+                Self::DECIMAL_PRECISION,
+                Some(b"V".as_slice()),
+            ),
+            #[cfg(not(feature = "board_v0"))]
+            (AdcChannel::Vsda, true) => (b"Vb:", value, 0, None), // standard SDA wire is blue
+            #[cfg(not(feature = "board_v0"))]
+            (AdcChannel::Vscl, true) => (b"Vy:", value, 0, None), // standard SCL wire is yellow
+            #[cfg(not(feature = "board_v0"))]
+            (AdcChannel::Vsda, false) | (AdcChannel::Vscl, false) | (AdcChannel::Vref, false) | (AdcChannel::Gnd, false) => (
+                match self.cur_channel {
+                    AdcChannel::Vsda => b"Vb:",
+                    AdcChannel::Vscl => b"Vy:",
                     AdcChannel::Vref => b"Vr:",
                     AdcChannel::Gnd => b"Vg:",
                     _ => unreachable!(),

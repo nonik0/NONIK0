@@ -1,11 +1,12 @@
 use crate::{adc::Adc, tone::Tone, Display, Event, SavedSettings, Setting, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
-#[cfg(not(feature = "no_i2cutils"))]
-mod i2c_utils;
+
 mod menu;
 #[cfg(not(feature = "no_nametag"))]
 mod nametag;
+#[cfg(not(feature = "no_i2cutils"))]
+mod i2c_utils;
 #[cfg(not(feature = "no_random"))]
 mod random;
 #[cfg(not(feature = "no_sensors"))]
@@ -19,11 +20,11 @@ mod tunnel;
 #[cfg(not(feature = "no_vibes"))]
 mod vibes;
 
-#[cfg(not(feature = "no_i2cutils"))]
-pub use i2c_utils::*;
 pub use menu::*;
 #[cfg(not(feature = "no_nametag"))]
 pub use nametag::*;
+#[cfg(not(feature = "no_i2cutils"))]
+pub use i2c_utils::*;
 #[cfg(not(feature = "no_random"))]
 pub use random::*;
 #[cfg(not(feature = "no_sensors"))]
@@ -94,8 +95,6 @@ pub const MODE_NAMES: [&[u8; NUM_CHARS]; NUM_MODES] = [
     b"   Vibes",
 ];
 
-//static mut MODES_TAKEN: bool = false;
-
 pub struct Context {
     mode_init: bool,
     mode_index: u8,
@@ -107,7 +106,7 @@ impl Context {
     pub fn new(settings: SavedSettings) -> Self {
         let mut saved_index = settings.read_setting_byte(Setting::LastMode);
         if saved_index >= NUM_MODES as u8 {
-            saved_index = 2;
+            saved_index = 1;
         }
         Self {
             mode_init: false,

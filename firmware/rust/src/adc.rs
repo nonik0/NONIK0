@@ -5,6 +5,10 @@ use avrxmega_hal::pac::{adc0, vref};
 #[repr(u8)]
 pub enum AdcChannel {
     Temp,
+    #[cfg(not(feature = "board_v0"))]
+    Vsda,
+    Vscl,
+    #[cfg(feature = "board_v0")]
     Vext,
     Vref,
     Gnd,
@@ -17,6 +21,9 @@ pub type InitDelay = adc0::ctrld::INITDLY_A;
 pub type IntReferenceVoltage = vref::ctrla::ADC0REFSEL_A;
 
 // helper macro to simply inc/dec enum values for settings
+#[cfg(not(feature = "board_v0"))]
+impl_enum_cycle!(AdcChannel, 5);
+#[cfg(feature = "board_v0")]
 impl_enum_cycle!(AdcChannel, 4);
 impl_enum_cycle!(Resolution, 2);
 impl_enum_cycle!(SampleNumber, 7);
@@ -162,6 +169,11 @@ impl Adc {
         if current_channel != new_channel {
             let muxpos = match channel {
                 AdcChannel::Temp => adc0::muxpos::MUXPOS_A::TEMPSENSE,
+                #[cfg(not(feature = "board_v0"))]
+                AdcChannel::Vsda => adc0::muxpos::MUXPOS_A::AIN10,
+                #[cfg(not(feature = "board_v0"))]
+                AdcChannel::Vscl => adc0::muxpos::MUXPOS_A::AIN11,
+                #[cfg(feature = "board_v0")]
                 AdcChannel::Vext => adc0::muxpos::MUXPOS_A::AIN10,
                 AdcChannel::Vref => adc0::muxpos::MUXPOS_A::INTREF,
                 AdcChannel::Gnd => adc0::muxpos::MUXPOS_A::GND,
@@ -218,10 +230,17 @@ impl Adc {
         }
         sample_count = 0;
         while sample_count < 4 {
+            #[cfg(not(feature = "board_v0"))]
+            if let Some(reading) = self.read_raw_nonblocking(AdcChannel::Vscl) {
+                seed_value = (seed_value << 4) | (reading as u32 & 0b1111);
+                sample_count += 1;
+            }
+            #[cfg(feature = "board_v0")]
             if let Some(reading) = self.read_raw_nonblocking(AdcChannel::Vext) {
                 seed_value = (seed_value << 4) | (reading as u32 & 0b1111);
                 sample_count += 1;
             }
+
         }
         crate::Rand::seed(seed_value);
     }

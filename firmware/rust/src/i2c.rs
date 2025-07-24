@@ -313,8 +313,10 @@ where
                 Some(data)
             } else {
                 // clear buffer once all data is read (TODO: not needed with callback)
-                state.bytes_to_process = 0;
-                state.bytes_processed = 0;
+                if state.bytes_processed > 0 {
+                    state.bytes_to_process = 0;
+                    state.bytes_processed = 0;
+                }
                 None
             }
         })
