@@ -21,7 +21,8 @@ const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
         - (5 + (((crate::CoreClock::FREQ / 1_000_000) * t_rise) / 2000))
 }
 
-const I2C_BUFFER_SIZE: usize = 32;
+// TODO: investigate issues with chunking data and consecutive writes from host? large buf for now
+pub const I2C_BUFFER_SIZE: usize = 120; //32; 
 static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
     avr_device::interrupt::Mutex::new(RefCell::new(None));
 
@@ -237,21 +238,20 @@ where
     }
 
     #[inline]
-    fn raw_read(&mut self, _buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
-        // avr_device::interrupt::free(|cs| {
-        //     let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
-        //     let state = state_opt.as_mut().unwrap();
+    fn raw_read(&mut self, buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
+        avr_device::interrupt::free(|cs| {
+            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+            let state = state_opt.as_mut().unwrap();
 
-        //     state.bytes_processed = 0;
-        //     state.bytes_to_process = buffer.len() as u8;
-        //     if state.bytes_to_process > I2C_BUFFER_SIZE as u8 {
-        //         state.bytes_to_process = I2C_BUFFER_SIZE as u8;
-        //     }
+            state.bytes_processed = 0;
+            state.bytes_to_process = buffer.len() as u8;
+            if state.bytes_to_process > I2C_BUFFER_SIZE as u8 {
+                state.bytes_to_process = I2C_BUFFER_SIZE as u8;
+            }
 
-        //     // TODO: receive bytes blocking
-        //     Ok(())
-        // })
-        Ok(())
+            // TODO: receive bytes blocking
+            Ok(())
+        })
     }
 
     #[inline]

@@ -2,7 +2,7 @@
 
 use super::ModeHandler;
 use crate::{
-    i2c::{Direction, Error, I2c},
+    i2c::{Direction, Error, I2c, I2C_BUFFER_SIZE},
     utils::*,
     Context, Event, Peripherals, SavedSettings, Setting, I2C_BUS_SPEED, NUM_CHARS,
 };
@@ -10,7 +10,7 @@ use crate::{
 const I2C_CLIENT_ADDRESS: u8 = 0x13;
 const I2C_MIN_ADDRESS: u8 = 0x02;
 const I2C_MAX_ADDRESS: u8 = 0x7F;
-const MAX_MESSAGE_SIZE: usize = 20;
+const MAX_MESSAGE_SIZE: usize = I2C_BUFFER_SIZE;
 
 #[derive(Clone, Copy)]
 pub enum I2CUtil {
@@ -31,8 +31,8 @@ pub struct I2CUtils {
     msg_data: [u8; MAX_MESSAGE_SIZE],
     msg_display: bool,
     msg_len: u8,
-    msg_pos: u8,
     msg_buf_pos: u8,
+    msg_scroll_pos: u8,
     msg_speed: u8,
     // for display timing
     counter: u8,
@@ -62,8 +62,8 @@ impl I2CUtils {
             msg_data,
             msg_display: true,
             msg_len: len as u8,
-            msg_pos: 0,
             msg_buf_pos: 0,
+            msg_scroll_pos: 0,
             msg_speed: 90,
             counter: 0,
         }
@@ -137,7 +137,7 @@ impl I2CUtils {
     }
 
     fn scroll_msg_init(&mut self, i2c: &mut I2c) {
-        self.msg_pos = 0;
+        self.msg_scroll_pos = 0;
         self.msg_buf_pos = 0;
         i2c.client_setup(I2C_CLIENT_ADDRESS);
     }
@@ -155,31 +155,29 @@ impl I2CUtils {
             }
             // setMessage
             else if command == 0x01 {
-                // read chunk into buffer, discard extra bytes if past buffer size
+                // read all received data into buffer, discard extra bytes if filled
                 while let Some(data) = i2c.client_read() {
-                    if self.msg_buf_pos < MAX_MESSAGE_SIZE as u8 - 1 {
+                    if self.msg_buf_pos < MAX_MESSAGE_SIZE as u8 {
                         self.msg_buf[self.msg_buf_pos as usize] = data;
                         self.msg_buf_pos += 1;
                     }
                 }
 
-                // detect last chunk (or buffer overflow)
-                if self.msg_buf_pos > 0
-                    && (self.msg_buf[self.msg_buf_pos as usize - 1] == b'\n'
-                        || self.msg_buf_pos >= MAX_MESSAGE_SIZE as u8 - 1)
-                {
-                    if self.msg_buf[self.msg_buf_pos as usize - 1] == b'\n' {
-                        self.msg_buf_pos -= 1;
-                        self.msg_buf[self.msg_buf_pos as usize] = b'\0';
-                    }
+                // if buffer is full, add null terminator
+                if self.msg_buf_pos >= MAX_MESSAGE_SIZE as u8 {
+                    self.msg_buf[self.msg_buf_pos as usize - 1] = b'\0';
+                }
 
-                    // clear msg_data first, then copy only the actual message
-                    self.msg_data.fill(0);
-                    self.msg_data[..self.msg_buf_pos as usize]
-                        .copy_from_slice(&self.msg_buf[..self.msg_buf_pos as usize]);
-                    self.msg_len = self.msg_buf_pos;
+                // last chunk if null terminator seen
+                if self.msg_buf_pos > 0 && self.msg_buf[self.msg_buf_pos as usize - 1] == b'\0' {
+                    // copy data without null terminator
+                    self.msg_len = self.msg_buf_pos - 1; 
+                    self.msg_data[..self.msg_len as usize]
+                        .copy_from_slice(&self.msg_buf[..self.msg_len as usize]);
+
+                    // reset positions
                     self.msg_buf_pos = 0;
-                    self.msg_pos = 0;
+                    self.msg_scroll_pos = 0;
                     update = true;
                 }
             }
@@ -198,8 +196,8 @@ impl I2CUtils {
         if self.counter > 100 - self.msg_speed {
             self.counter = 0;
 
-            let msg_full_len = (self.msg_len as usize + NUM_CHARS * 2) as u8;
-            self.msg_pos = (self.msg_pos + 1) % msg_full_len;
+            let msg_full_len = (self.msg_len as usize + NUM_CHARS) as u8; // NUM_CHARS blank padding
+            self.msg_scroll_pos = (self.msg_scroll_pos + 1) % msg_full_len;
             update = true;
         }
 
@@ -209,7 +207,7 @@ impl I2CUtils {
     fn format_scroll_msg(&self, buf: &mut [u8; NUM_CHARS]) {
         // adds padding spaces before and after message for scrolling effect
         for display_index in 0..NUM_CHARS {
-            let offset_index = self.msg_pos as usize + display_index;
+            let offset_index = self.msg_scroll_pos as usize + display_index;
             buf[display_index] = if self.msg_display && offset_index >= NUM_CHARS {
                 let actual_index = offset_index - NUM_CHARS;
                 if actual_index < self.msg_len as usize {
