@@ -22,7 +22,7 @@ const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
 }
 
 // TODO: investigate issues with chunking data and consecutive writes from host? large buf for now
-pub const I2C_BUFFER_SIZE: usize = 120; //32; 
+pub const I2C_BUFFER_SIZE: usize = 160;
 static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
     avr_device::interrupt::Mutex::new(RefCell::new(None));
 
@@ -342,12 +342,10 @@ where
                 return Err(Error::Uninit);
             }
 
-            let mut result = Ok(());
-
-            // TODO: how to cleanly pack two bools into u8?
             let mut addr_sent = false;
             let mut data_sent = false;
-            loop {
+            
+            let result = loop {
                 let status = state.twi.mstatus().read();
                 let bus_state = status.busstate();
 
@@ -381,12 +379,13 @@ where
                         if data_sent {
                             // ignore NACK if all data was sent
                             if state.bytes_to_process != 0 {
-                                result = Err(Error::DataNack);
+                                break Err(Error::DataNack);
+                            } else {
+                                break Ok(());
                             }
                         } else {
-                            result = Err(Error::AddressNack);
+                            break Err(Error::AddressNack);
                         }
-                        break;
                     // else check if more bytes to send
                     } else if state.bytes_to_process > 0 {
                         state
@@ -398,10 +397,10 @@ where
                         data_sent = true;
                     // break when no more bytes to send
                     } else {
-                        break;
+                        break Ok(());
                     }
-                } // bus state busy check
-            } // loop
+                }
+            };
 
             if send_stop || result.is_err() {
                 state.twi.mctrlb().write(|w| w.mcmd().stop());

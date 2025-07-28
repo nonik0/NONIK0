@@ -27,11 +27,11 @@ pub struct I2CUtils {
     scan_direction: Direction,
     scan_error: Option<Error>,
     // message data
-    msg_buf: [u8; MAX_MESSAGE_SIZE],
+    //msg_buf: [u8; MAX_MESSAGE_SIZE],
     msg_data: [u8; MAX_MESSAGE_SIZE],
     msg_display: bool,
     msg_len: u8,
-    msg_buf_pos: u8,
+    //msg_buf_pos: u8,
     msg_scroll_pos: u8,
     msg_speed: u8,
     // for display timing
@@ -58,13 +58,13 @@ impl I2CUtils {
             scan_address: I2C_MIN_ADDRESS - 1,
             scan_direction: Direction::Write,
             scan_error: None,
-            msg_buf: [0; MAX_MESSAGE_SIZE],
+            //msg_buf: [0; MAX_MESSAGE_SIZE],
             msg_data,
             msg_display: true,
             msg_len: len as u8,
-            msg_buf_pos: 0,
+            //msg_buf_pos: 0,
             msg_scroll_pos: 0,
-            msg_speed: 90,
+            msg_speed: 93,
             counter: 0,
         }
     }
@@ -113,15 +113,9 @@ impl I2CUtils {
     }
 
     fn format_scan_result(&self, buf: &mut [u8; NUM_CHARS]) {
-        fn u4_to_hex(b: u8) -> u8 {
-            match b {
-                x if x < 0x0A => b'0' + x,
-                x if x < 0x10 => b'A' + x,
-                _ => b'?',
-            }
-        }
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
         fn addr_to_ascii(addr: u8) -> [u8; 2] {
-            [u4_to_hex(addr >> 4), u4_to_hex(addr & 0x0F)]
+            [HEX[(addr >> 4) as usize], HEX[(addr & 0x0F) as usize]]
         }
         if let Some(error) = self.scan_error {
             if self.counter < 0x7F {
@@ -138,7 +132,7 @@ impl I2CUtils {
 
     fn scroll_msg_init(&mut self, i2c: &mut I2c) {
         self.msg_scroll_pos = 0;
-        self.msg_buf_pos = 0;
+        //self.msg_buf_pos = 0;
         i2c.client_setup(I2C_CLIENT_ADDRESS);
     }
 
@@ -156,30 +150,47 @@ impl I2CUtils {
             // setMessage
             else if command == 0x01 {
                 // read all received data into buffer, discard extra bytes if filled
+                self.msg_len = 0;
                 while let Some(data) = i2c.client_read() {
-                    if self.msg_buf_pos < MAX_MESSAGE_SIZE as u8 {
-                        self.msg_buf[self.msg_buf_pos as usize] = data;
-                        self.msg_buf_pos += 1;
+                    if self.msg_len < MAX_MESSAGE_SIZE as u8 {
+                        self.msg_data[self.msg_len as usize] = data;
+                        self.msg_len += 1;
                     }
                 }
 
-                // if buffer is full, add null terminator
-                if self.msg_buf_pos >= MAX_MESSAGE_SIZE as u8 {
-                    self.msg_buf[self.msg_buf_pos as usize - 1] = b'\0';
+                // remove null terminator if present
+                if self.msg_data[self.msg_len as usize - 1] == b'\0' {
+                    self.msg_len -= 1;
                 }
 
-                // last chunk if null terminator seen
-                if self.msg_buf_pos > 0 && self.msg_buf[self.msg_buf_pos as usize - 1] == b'\0' {
-                    // copy data without null terminator
-                    self.msg_len = self.msg_buf_pos - 1; 
-                    self.msg_data[..self.msg_len as usize]
-                        .copy_from_slice(&self.msg_buf[..self.msg_len as usize]);
+                self.msg_scroll_pos = 0;
+                update = true;
 
-                    // reset positions
-                    self.msg_buf_pos = 0;
-                    self.msg_scroll_pos = 0;
-                    update = true;
-                }
+                // TODO: debug dropped chunks with consecutive writes from host
+                // while let Some(data) = i2c.client_read() {
+                //     if self.msg_buf_pos < MAX_MESSAGE_SIZE as u8 {
+                //         self.msg_buf[self.msg_buf_pos as usize] = data;
+                //         self.msg_buf_pos += 1;
+                //     }
+                // }
+
+                // // if buffer is full, add null terminator
+                // if self.msg_buf_pos >= MAX_MESSAGE_SIZE as u8 {
+                //     self.msg_buf[self.msg_buf_pos as usize - 1] = b'\0';
+                // }
+
+                // // last chunk if null terminator seen
+                // if self.msg_buf_pos > 0 && self.msg_buf[self.msg_buf_pos as usize - 1] == b'\0' {
+                //     // copy data without null terminator
+                //     self.msg_len = self.msg_buf_pos - 1; 
+                //     self.msg_data[..self.msg_len as usize]
+                //         .copy_from_slice(&self.msg_buf[..self.msg_len as usize]);
+
+                //     // reset positions
+                //     self.msg_buf_pos = 0;
+                //     self.msg_scroll_pos = 0;
+                //     update = true;
+                // }
             }
             // setScrollSpeed
             else if command == 0x02 {
