@@ -21,8 +21,12 @@ const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
         - (5 + (((crate::CoreClock::FREQ / 1_000_000) * t_rise) / 2000))
 }
 
-// TODO: investigate issues with chunking data and consecutive writes from host? large buf for now
-pub const I2C_BUFFER_SIZE: usize = 160;
+// TODO: investigate issues with chunking data and consecutive writes from host
+// for now, specific feature enables large buffer for use as I2C client
+#[cfg(feature = "i2c_client")]
+pub const I2C_BUFFER_SIZE: usize = 256; 
+#[cfg(not(feature = "i2c_client"))]
+pub const I2C_BUFFER_SIZE: usize = 32;
 static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
     avr_device::interrupt::Mutex::new(RefCell::new(None));
 

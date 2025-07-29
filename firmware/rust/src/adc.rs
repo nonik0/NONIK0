@@ -7,6 +7,7 @@ pub enum AdcChannel {
     Temp,
     #[cfg(not(feature = "board_v0"))]
     Vsda,
+    #[cfg(not(feature = "board_v0"))]
     Vscl,
     #[cfg(feature = "board_v0")]
     Vext,
