@@ -24,7 +24,7 @@ const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
 // TODO: investigate issues with chunking data and consecutive writes from host
 // for now, specific feature enables large buffer for use as I2C client
 #[cfg(feature = "i2c_client")]
-pub const I2C_BUFFER_SIZE: usize = 256; 
+pub const I2C_BUFFER_SIZE: usize = 200; 
 #[cfg(not(feature = "i2c_client"))]
 pub const I2C_BUFFER_SIZE: usize = 32;
 static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
