@@ -242,9 +242,6 @@ impl ModeHandler for Sensors {
                         // disable ADC when leaving utils mode
                         self.settings_active = false;
                         peripherals.adc.disable();
-                        context
-                            .settings
-                            .save_setting_byte(Setting::SensorPage, self.cur_channel as u8);
                         context.to_menu();
                         return;
                     }
@@ -271,7 +268,10 @@ impl ModeHandler for Sensors {
                         self.increment_cur_setting(&mut peripherals.adc.settings);
                     } else {
                         self.cur_channel = self.cur_channel.next_wrapping();
-                    }
+                        context
+                            .settings
+                            .save_setting_byte(Setting::SensorPage, self.cur_channel as u8);                        
+                        }
                     update = true;
                 }
                 _ => {}
