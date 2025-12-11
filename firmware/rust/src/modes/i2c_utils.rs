@@ -247,14 +247,25 @@ impl ModeHandler for I2CUtils {
         if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
+                    // disable I2C host or client module before leaving mode
+                    match self.cur_util {
+                        I2CUtil::ScannerHost => peripherals.i2c.host_end(),
+                        I2CUtil::MessageClient => peripherals.i2c.client_end(),
+                    };
                     context.to_menu();
                     return;
                 }
                 Event::RightHeld => {
-                    peripherals.i2c.end();
+                    // disable I2C host or client module before switching current util
                     self.cur_util = match self.cur_util {
-                        I2CUtil::ScannerHost => I2CUtil::MessageClient,
-                        I2CUtil::MessageClient => I2CUtil::ScannerHost,
+                        I2CUtil::ScannerHost => {
+                            peripherals.i2c.host_end();
+                            I2CUtil::MessageClient
+                        }
+                        I2CUtil::MessageClient => {
+                            peripherals.i2c.client_end();
+                            I2CUtil::ScannerHost
+                        }
                     };
                     context
                         .settings

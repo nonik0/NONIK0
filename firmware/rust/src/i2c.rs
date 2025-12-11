@@ -35,8 +35,8 @@ struct I2cState {
     twi_init: bool,
     host_bus_speed: u32,
     client_address: u8,
-    _sda: Pin<Input<AnyInput>, SDAPIN>,
-    _scl: Pin<Input<AnyInput>, SCLPIN>,
+    sda: Option<Pin<Input<AnyInput>, SDAPIN>>,
+    scl: Option<Pin<Input<AnyInput>, SCLPIN>>,
 
     // buffer that holds data to send and received data
     data: [u8; I2C_BUFFER_SIZE],
@@ -50,8 +50,8 @@ struct I2cState {
 impl I2cState {
     fn new(
         twi: TWI,
-        sda: Pin<Input<PullUp>, SDAPIN>,
-        scl: Pin<Input<PullUp>, SCLPIN>,
+        sda: Pin<Input<AnyInput>, SDAPIN>,
+        scl: Pin<Input<AnyInput>, SCLPIN>,
         host_bus_speed: u32,
         address: u8,
     ) -> Self {
@@ -59,8 +59,8 @@ impl I2cState {
             twi,
             twi_init: false,
             host_bus_speed,
-            _sda: sda.forget_imode(),
-            _scl: scl.forget_imode(),
+            sda: Some(sda),
+            scl: Some(scl),
             data: [0; I2C_BUFFER_SIZE],
             client_address: address << 1, // byte 0 is rw bit, 0 for write
             bytes_to_process: 0,
@@ -68,6 +68,28 @@ impl I2cState {
             bytes_transmitted: 0,
             client_check_nak: false,
             host_data_sent: false,
+        }
+    }
+
+    // TODO: move raw functions into this impl, grab mutex once per outer call
+
+    fn pins_to_pullup(&mut self) {
+        if let Some(sda) = self.sda.take() {
+            self.sda = Some(sda.into_pull_up_input().forget_imode());
+        }
+        
+        if let Some(scl) = self.scl.take() {
+            self.scl = Some(scl.into_pull_up_input().forget_imode());
+        }
+    }
+
+    fn pins_to_floating(&mut self) {
+        if let Some(sda) = self.sda.take() {
+            self.sda = Some(sda.into_floating_input().forget_imode());
+        }
+        
+        if let Some(scl) = self.scl.take() {
+            self.scl = Some(scl.into_floating_input().forget_imode());
         }
     }
 }
@@ -111,8 +133,8 @@ where
 {
     pub fn new(
         twi: TWI,
-        sda: Pin<Input<PullUp>, SDAPIN>,
-        scl: Pin<Input<PullUp>, SCLPIN>,
+        sda: Pin<Input<AnyInput>, SDAPIN>,
+        scl: Pin<Input<AnyInput>, SCLPIN>,
         speed: u32,
     ) -> Self {
         let state = I2cState::new(twi, sda, scl, speed, 0);
@@ -125,16 +147,15 @@ where
         Self {}
     }
 
-    pub fn end(&mut self) {
-        self.raw_end();
-        self.raw_end_client();
-    }
-
     //
     // HOST PUBLIC
     //
     pub fn host_setup(&mut self, speed: u32) {
         self.raw_setup(speed);
+    }
+
+    pub fn host_end(&mut self) {
+        self.raw_end();
     }
 
     pub fn host_ping_device(&mut self, address: u8, direction: Direction) -> Result<bool, Error> {
@@ -181,6 +202,10 @@ where
         self.raw_setup_client(address);
     }
 
+    pub fn client_end(&mut self) {
+        self.raw_end_client();
+    }
+
     pub fn client_available(&self) -> u8 {
         self.raw_available_client()
     }
@@ -197,6 +222,8 @@ where
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
             let state = state_opt.as_mut().unwrap();
+
+            state.pins_to_pullup();
 
             let baud = twi_baud(speed, 350) as u8; // hard-coded rise time estimate for now
             state.twi.mbaud().write(|w| w.set(baud));
@@ -271,6 +298,8 @@ where
 
             state.twi.mctrla().write(|w| w.enable().clear_bit());
             state.twi.mbaud().write(|w| w.set(0));
+
+            state.pins_to_floating();
         });
     }
 
@@ -282,6 +311,8 @@ where
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
             let state = state_opt.as_mut().unwrap();
+
+            state.pins_to_pullup();
 
             state.twi.saddr().write(|w| w.set(address << 1));
             state.twi.sctrla().write(|w| {
@@ -333,6 +364,8 @@ where
 
             state.twi.saddr().write(|w| w.set(0));
             state.twi.sctrla().write(|w| w.enable().clear_bit());
+
+            state.pins_to_floating();
         });
     }
 

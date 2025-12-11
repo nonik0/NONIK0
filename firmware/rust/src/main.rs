@@ -87,8 +87,8 @@ fn main() -> ! {
     #[cfg(not(feature = "no_i2cutils"))]
     let i2c = i2c::I2c::new(
         dp.TWI0,
-        pins.pb1.into_pull_up_input(),
-        pins.pb0.into_pull_up_input(),
+        pins.pb1.forget_imode(),
+        pins.pb0.forget_imode(),
         I2C_BUS_SPEED,
     );
 
