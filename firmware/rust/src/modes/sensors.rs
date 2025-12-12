@@ -43,15 +43,20 @@ impl Sensors {
     const DECIMAL_PRECISION: u16 = 2; // X.YY
 
     pub fn new_with_settings(settings: &SavedSettings) -> Self {
+        #[cfg(not(feature = "board_v0"))]
         let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
-            1 => AdcChannel::Vref,
+            1 => AdcChannel::Vsda,
+            2 => AdcChannel::Vscl,
+            3 => AdcChannel::Gnd,
+            4 => AdcChannel::Vref,
+            _ => AdcChannel::Temp,
+        };
+
+        #[cfg(feature = "board_v0")]
+        let saved_reading = match settings.read_setting_byte(Setting::SensorPage) {
+            1 => AdcChannel::Vext,
             2 => AdcChannel::Gnd,
-            #[cfg(not(feature = "board_v0"))]
-            3 => AdcChannel::Vsda,
-            #[cfg(not(feature = "board_v0"))]
-            4 => AdcChannel::Vscl,
-            #[cfg(feature = "board_v0")]
-            3 => AdcChannel::Vext,
+            3 => AdcChannel::Vref,
             _ => AdcChannel::Temp,
         };
 
@@ -168,7 +173,7 @@ impl Sensors {
             SensorSetting::RefVoltage => {
                 if adc.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
                     adc.adc_ref_voltage = AdcReferenceVoltage::INTREF;
-                    adc.int_ref_voltage = IntReferenceVoltage::_1V5;
+                    adc.int_ref_voltage = IntReferenceVoltage::_4V34;
                 } else {
                     adc.int_ref_voltage = adc.int_ref_voltage.prev();
                 }
@@ -188,7 +193,7 @@ impl Sensors {
             SensorSetting::SampCap => adc.samp_cap = !adc.samp_cap,
             SensorSetting::RefVoltage => {
                 if adc.adc_ref_voltage == AdcReferenceVoltage::INTREF {
-                    if adc.int_ref_voltage == IntReferenceVoltage::_1V5 {
+                    if adc.int_ref_voltage == IntReferenceVoltage::_4V34 {
                         adc.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
                     } else {
                         adc.int_ref_voltage = adc.int_ref_voltage.next();

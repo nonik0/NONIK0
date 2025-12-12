@@ -11,8 +11,8 @@ pub enum AdcChannel {
     Vscl,
     #[cfg(feature = "board_v0")]
     Vext,
-    Vref,
     Gnd,
+    Vref,
 }
 pub type Resolution = adc0::ctrla::RESSEL_A;
 pub type SampleNumber = adc0::ctrlb::SAMPNUM_A;
