@@ -152,7 +152,7 @@ impl ModeHandler for Random {
 
         if update {
             let mut buf = [b' '; NUM_CHARS];
-            let rand_value = Rand::default().get_u32();
+            let rand_value = Rand.get_u32();
 
             match self.cur_page {
                 Page::IntegerBase10 => Self::format_integer_base10(&mut buf, rand_value),

@@ -6,9 +6,11 @@ use avrxmega_hal::{
 };
 use core::cell::RefCell;
 
-type SDAPIN = PB1;
-type SCLPIN = PB0;
-type TWI = avrxmega_hal::pac::TWI0;
+pub const I2C_BUS_SPEED: u32 = 100_000; // 100kHz
+
+type SdaPin = PB1;
+type SclPin = PB0;
+type Twi = avrxmega_hal::pac::TWI0;
 
 const fn add_read_bit(address: u8) -> u8 {
     address | 0x01
@@ -31,12 +33,11 @@ static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
     avr_device::interrupt::Mutex::new(RefCell::new(None));
 
 struct I2cState {
-    twi: TWI,
+    twi: Twi,
     twi_init: bool,
-    host_bus_speed: u32,
     client_address: u8,
-    sda: Option<Pin<Input<AnyInput>, SDAPIN>>,
-    scl: Option<Pin<Input<AnyInput>, SCLPIN>>,
+    sda: Option<Pin<Input<AnyInput>, SdaPin>>,
+    scl: Option<Pin<Input<AnyInput>, SclPin>>,
 
     // buffer that holds data to send and received data
     data: [u8; I2C_BUFFER_SIZE],
@@ -49,16 +50,14 @@ struct I2cState {
 
 impl I2cState {
     fn new(
-        twi: TWI,
-        sda: Pin<Input<AnyInput>, SDAPIN>,
-        scl: Pin<Input<AnyInput>, SCLPIN>,
-        host_bus_speed: u32,
+        twi: Twi,
+        sda: Pin<Input<AnyInput>, SdaPin>,
+        scl: Pin<Input<AnyInput>, SclPin>,
         address: u8,
     ) -> Self {
         Self {
             twi,
             twi_init: false,
-            host_bus_speed,
             sda: Some(sda),
             scl: Some(scl),
             data: [0; I2C_BUFFER_SIZE],
@@ -105,7 +104,7 @@ pub enum Error {
     /// Slave replied NACK to sent data
     DataNack,
     /// A bus-error occured
-    BusError,
+    Bus,
     /// An unknown error occured.  The bus might be in an unknown state.
     Unknown,
     /// The I2C peripheral is not initialized
@@ -128,16 +127,15 @@ pub struct I2c {}
 
 impl I2c
 where
-    SDAPIN: PinOps,
-    SCLPIN: PinOps,
+    SdaPin: PinOps,
+    SclPin: PinOps,
 {
     pub fn new(
-        twi: TWI,
-        sda: Pin<Input<AnyInput>, SDAPIN>,
-        scl: Pin<Input<AnyInput>, SCLPIN>,
-        speed: u32,
+        twi: Twi,
+        sda: Pin<Input<AnyInput>, SdaPin>,
+        scl: Pin<Input<AnyInput>, SclPin>,
     ) -> Self {
-        let state = I2cState::new(twi, sda, scl, speed, 0);
+        let state = I2cState::new(twi, sda, scl, 0);
 
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -256,7 +254,7 @@ where
             let state = state_opt.as_mut().unwrap();
 
             let buf_start = state.bytes_to_process as usize;
-            let buf_end = buf_start + bytes.len() as usize;
+            let buf_end = buf_start + bytes.len();
             if buf_end >= I2C_BUFFER_SIZE {
                 return Err(Error::BufferOverflow);
             }

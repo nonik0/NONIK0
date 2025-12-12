@@ -37,7 +37,7 @@ impl ToneState {
             1 => w.clksel().clkdiv1(),
             _ => w.clksel().clkdiv2(),
         });
-        self.timer.ccmp().write(|w| w.set(compare_value as u16));
+        self.timer.ccmp().write(|w| w.set(compare_value));
         self.timer.ctrlb().write(|w| w.cntmode().int());
         self.timer.cnt().write(|w| w.set(0));
         self.timer.intctrl().write(|w| w.capt().set_bit());

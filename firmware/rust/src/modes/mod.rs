@@ -128,6 +128,7 @@ impl Context {
         update
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_menu(&mut self) {
         self.mode_init = false;
         self.mode_index = 0;
@@ -137,6 +138,7 @@ impl Context {
         self.mode_index as usize
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_mode(&mut self, index: usize) {
         self.mode_init = false;
         self.mode_index = index as u8;

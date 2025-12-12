@@ -15,7 +15,7 @@ pub struct SavedSettings(crate::Eeprom);
 
 impl SavedSettings {
     pub fn new(eeprom: crate::Eeprom) -> Self {
-        SavedSettings { 0: eeprom }
+        SavedSettings(eeprom)
     }
 
     #[inline(always)]

@@ -37,13 +37,13 @@ static_cell = { version = "2.1.0", features = ["nightly"] }
 ufmt = "0.2.0"
 
 [dependencies.avr-device]
-git = "https://github.com/Rahix/avr-device"
-branch = "main" # revert when attiny1604 is released
+version = "0.8"
 features = ["attiny1604", "rt"]
 
 [dependencies.avrxmega-hal]
 git = "https://github.com/nonik0/avr-hal"
-branch = "avr-device-new"
+rev = "a452719c81493d81445ac7f29c63598020ec2aa0"
+#branch = "avr-device-new"
 features = ["attiny1604"]
 
 # Cargo profile settings quick reference:

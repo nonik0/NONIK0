@@ -19,7 +19,7 @@ struct Truck {
 
 impl Truck {
     fn rand(&mut self, lane_min: u8, lane_max: u8) {
-        let mut rand = Rand::default();
+        let mut rand = Rand;
         let max_width = lane_max - lane_min + 1;
 
         self.length = 2 + if max_width > 1 { rand.get_u8() % 7 } else { 0 };
@@ -164,11 +164,11 @@ impl Traffic {
         let truck_chance = 7 + truck_count as u8;
         if gap_count > 0
             && truck_count < self.truck_max_count
-            && (Rand::default().get_u8() % truck_chance) == 0
+            && (Rand.get_u8() % truck_chance) == 0
         {
             for truck in &mut self.trucks {
                 if truck.length == 0 {
-                    let gap_index = Rand::default().get_u8() as usize % gap_count;
+                    let gap_index = Rand.get_u8() as usize % gap_count;
                     let gap_lane_start = gap_lanes[gap_index];
                     let gap_lane_end = gap_lane_start + gap_sizes[gap_index] - 1;
                     let min_truck_lane = if gap_lane_start == 0 {

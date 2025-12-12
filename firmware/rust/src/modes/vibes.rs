@@ -162,7 +162,7 @@ impl CloudState {
     }
 
     fn next_cloud(&mut self) {
-        let mut rng = Rand::default();
+        let mut rng = Rand;
         self.gap = rng.get_u8() % 10 + 1;
         self.loc = 1 + rng.get_u8() % (NUM_ROWS as u8 - 3);
         self.height = 2 + rng.get_u8() % 2;
@@ -204,7 +204,7 @@ impl EarthState {
     }
 
     fn next_mountain(&mut self) {
-        let mut rng = Rand::default();
+        let mut rng = Rand;
         //self.cur_height remains the same
         self.cur_length = 0;
         self.height = 4 + rng.get_u8() % 3; // height range: [4, 6]

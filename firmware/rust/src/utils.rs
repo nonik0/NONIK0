@@ -2,7 +2,7 @@
 #[macro_export]
 macro_rules! impl_enum_cycle {
     ($enum:ty, $count:expr) => {
-        impl crate::utils::EnumCycle for $enum {
+        impl EnumCycle for $enum {
             const COUNT: u8 = $count;
 
             #[inline(always)]
@@ -108,7 +108,7 @@ pub fn format_buf(buf: &mut [u8], left: &[u8], right: &[u8]) {
 
     buf[..left_len].copy_from_slice(left);
     buf[num_chars - right_len..].copy_from_slice(right);
-    for i in left_len..num_chars - right_len {
-        buf[i] = b' ';
+    for buf_char in buf.iter_mut().take(num_chars - right_len).skip(left_len) {
+        *buf_char = b' ';
     }
 }

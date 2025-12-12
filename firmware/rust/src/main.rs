@@ -70,7 +70,6 @@ const NUM_VIRT_COLS: usize = NUM_COLS + (NUM_CHARS - 1) * COLUMN_GAP;
 const COLUMN_GAP: usize = 2;
 
 const BASE_DELAY_MS: u32 = 5;
-const I2C_BUS_SPEED: u32 = 100_000; // 100kHz
 
 #[avr_device::entry]
 fn main() -> ! {
@@ -89,7 +88,6 @@ fn main() -> ! {
         dp.TWI0,
         pins.pb1.forget_imode(),
         pins.pb0.forget_imode(),
-        I2C_BUS_SPEED,
     );
 
     let eeprom = Eeprom::new(dp.NVMCTRL);

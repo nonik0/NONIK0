@@ -94,7 +94,7 @@ impl ModeHandler for Tunnel {
                 if i % (hcms_29xx::CHAR_WIDTH + COLUMN_GAP) < hcms_29xx::CHAR_WIDTH {
                     let mut col = self.tunnel_cols.get(i).copied().unwrap_or(0);
 
-                    if i == 2 as usize || i == 3 as usize {
+                    if i == 2_usize || i == 3_usize {
                         let collision = col & self.get_runner_col() != 0;
                         if collision {
                             self.is_running = false;
@@ -140,7 +140,7 @@ impl TunnelState {
         }
 
         // shift/expand tunnel
-        let mut rand = Rand::default();
+        let mut rand = Rand;
         let will_shift = rand.get_u8() % 2 == 0;
         if will_shift {
             let shift_up = rand.get_u8() % 2 == 0;
@@ -176,17 +176,14 @@ impl TunnelState {
             let min_size_decrease = rand.get_u8() % 3 != 0; // 2/3 chance to decrease min size
             if min_size_decrease && self.min_width > 1 {
                 self.min_width -= 1;
-            } else if self.max_width > self.min_width {
-                self.min_width -= 1;
             }
         }
 
         let period_decrease = !difficulty_increase && rand.get_u8() % 200 == 0;
-        if period_decrease {
-            if self.period > 1 {
+        if period_decrease
+            && self.period > 1 {
                 self.period -= 1;
             }
-        }
 
         // generate next col
         let mut col: u8 = 0;

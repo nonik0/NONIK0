@@ -2,9 +2,9 @@
 
 use super::ModeHandler;
 use crate::{
-    i2c::{Direction, Error, I2c, I2C_BUFFER_SIZE},
+    i2c::{Direction, Error, I2c, I2C_BUS_SPEED, I2C_BUFFER_SIZE},
     utils::*,
-    Context, Event, Peripherals, SavedSettings, Setting, I2C_BUS_SPEED, NUM_CHARS,
+    Context, Event, Peripherals, SavedSettings, Setting, NUM_CHARS,
 };
 
 const I2C_CLIENT_ADDRESS: u8 = 0x13;
@@ -201,7 +201,7 @@ impl I2CUtils {
             }
 
             // flush any extra data
-            while let Some(_) = i2c.client_read() {}
+            while i2c.client_read().is_some() {}
         }
 
         if self.counter > 100 - self.msg_speed {
@@ -217,9 +217,9 @@ impl I2CUtils {
 
     fn format_scroll_msg(&self, buf: &mut [u8; NUM_CHARS]) {
         // adds padding spaces before and after message for scrolling effect
-        for display_index in 0..NUM_CHARS {
+        for (display_index, buf_char) in buf.iter_mut().enumerate().take(NUM_CHARS) {
             let offset_index = self.msg_scroll_pos as usize + display_index;
-            buf[display_index] = if self.msg_display && offset_index >= NUM_CHARS {
+            *buf_char = if self.msg_display && offset_index >= NUM_CHARS {
                 let actual_index = offset_index - NUM_CHARS;
                 if actual_index < self.msg_len as usize {
                     self.msg_data[actual_index]

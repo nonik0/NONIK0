@@ -185,7 +185,7 @@ impl Adc {
             let is_temp_channel = new_channel == (AdcChannel::Temp as u8);
             let was_temp_channel = current_channel == (AdcChannel::Temp as u8);
             if is_temp_channel {
-                let old_settings = self.settings.clone();
+                let old_settings = self.settings;
                 self.settings.int_ref_voltage = IntReferenceVoltage::_1V1;
                 self.apply_settings();
                 self.settings = old_settings;
@@ -205,19 +205,11 @@ impl Adc {
     }
 
     pub fn read_temp_nonblocking(&mut self, use_f: bool) -> Option<u16> {
-        if let Some(raw) = self.read_raw_nonblocking(AdcChannel::Temp) {
-            Some(self.temp_from_raw(raw, use_f))
-        } else {
-            None
-        }
+        self.read_raw_nonblocking(AdcChannel::Temp).map(|raw| self.temp_from_raw(raw, use_f))
     }
 
     pub fn read_voltage_nonblocking(&mut self, channel: AdcChannel) -> Option<u16> {
-        if let Some(raw) = self.read_raw_nonblocking(channel) {
-            Some(self.voltage_from_raw(raw))
-        } else {
-            None
-        }
+        self.read_raw_nonblocking(channel).map(|raw| self.voltage_from_raw(raw))
     }
 
     pub fn seed_rand(&mut self) {
@@ -263,7 +255,7 @@ impl Adc {
 
     fn temp_from_raw(&mut self, raw: u16, use_f: bool) -> u16 {
         let sigrow_offset = self.sigrow.tempsense1().read().bits() as i8;
-        let sigrow_gain = self.sigrow.tempsense0().read().bits() as u8;
+        let sigrow_gain = self.sigrow.tempsense0().read().bits();
 
         let mut temp: u32 = ((raw as i32) - (sigrow_offset as i32)) as u32;
         temp = (temp as i32 * sigrow_gain as i32) as u32;
