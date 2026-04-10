@@ -115,6 +115,8 @@ fn main() -> ! {
         adc,
         buzzer,
         display,
+        #[cfg(feature = "board_v0")]
+        pins.pb1.forget_imode(),
         #[cfg(not(feature = "no_i2cutils"))]
         i2c,
     );

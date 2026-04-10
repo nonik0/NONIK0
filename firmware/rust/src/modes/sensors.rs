@@ -84,6 +84,7 @@ pub struct Sensors {
     settings_active: bool,
     // for continuity, >0 is continuity, ==0 is none
     last_reading: u16,
+    #[cfg(not(feature = "board_v0"))]
     continuity_channel: bool, // false = blue/sda, true = yellow/scl
 
     show_raw: bool,
@@ -103,6 +104,7 @@ impl Sensors {
             tone_active: 0,
             settings_active: false,
             last_reading: 0,
+            #[cfg(not(feature = "board_v0"))]
             continuity_channel: false,
             show_raw: false,
             show_tempf: false,
@@ -319,6 +321,9 @@ impl ModeHandler for Sensors {
                         // disable ADC when leaving utils mode
                         self.settings_active = false;
                         peripherals.adc.disable();
+                        #[cfg(feature = "board_v0")]
+                        peripherals.ext_pin.to_floating();
+                        #[cfg(not(feature = "board_v0"))] 
                         peripherals.i2c.pins_to_floating();
                         peripherals.buzzer.no_tone();
                         context.to_menu();
@@ -364,14 +369,14 @@ impl ModeHandler for Sensors {
         // set up pins based on cur page
         if !self.port_init {
             match self.cur_page {
-                SensorPage::AdcChannel(_) => {
-                    // floating for voltage test
-                    peripherals.i2c.pins_to_floating();
-                }
-                SensorPage::ContinuityTest => {
-                    // pullup for continuity test
-                    peripherals.i2c.pins_to_pullup();
-                }
+                #[cfg(feature = "board_v0")] 
+                SensorPage::AdcChannel(_) => _ = peripherals.ext_pin.to_floating(),
+                #[cfg(feature = "board_v0")] 
+                SensorPage::ContinuityTest => _ = peripherals.ext_pin.to_pull_up(),
+                #[cfg(not(feature = "board_v0"))]
+                SensorPage::AdcChannel(_) => peripherals.i2c.pins_to_floating(),
+                #[cfg(not(feature = "board_v0"))]
+                SensorPage::ContinuityTest => peripherals.i2c.pins_to_pull_up(),
             }
             self.port_init = true;
         }

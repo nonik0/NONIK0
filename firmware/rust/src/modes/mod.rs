@@ -1,6 +1,44 @@
 use crate::{adc::Adc, tone::Tone, Display, Event, SavedSettings, Setting, NUM_CHARS};
 use enum_dispatch::enum_dispatch;
 
+#[cfg(feature = "board_v0")]
+use avrxmega_hal::{
+    port::{mode::*, Pin}
+};
+
+#[cfg(feature = "board_v0")]
+type ExtPinInt = crate::PB1;
+
+#[cfg(feature = "board_v0")]
+pub struct ExtPin(Option<Pin<Input<AnyInput>, ExtPinInt>>);
+
+#[cfg(feature = "board_v0")]
+impl ExtPin {
+    fn new(
+        ext_pin: Pin<Input<AnyInput>, ExtPinInt>,
+    ) -> Self {
+        Self(Some(ext_pin))
+    }
+
+    fn set_pin_mode(&mut self, pull_up: bool) {
+        if let Some(ext_pin) = self.0.take() {
+            self.0 = Some(if pull_up {
+                ext_pin.into_pull_up_input().forget_imode()
+            } else {
+                ext_pin.into_floating_input().forget_imode()
+            });
+        }
+    }
+
+    fn to_pull_up(&mut self) {
+        self.set_pin_mode(true);
+    }
+
+    fn to_floating(&mut self) {
+        self.set_pin_mode(false);
+    }
+}
+
 
 mod menu;
 #[cfg(not(feature = "no_nametag"))]
@@ -151,6 +189,8 @@ pub struct Peripherals {
     pub adc: Adc,
     pub buzzer: Tone,
     pub display: Display,
+    #[cfg(feature = "board_v0")]
+    pub ext_pin: ExtPin,
     #[cfg(not(feature = "no_i2cutils"))]
     pub i2c: crate::i2c::I2c,
 }
@@ -160,12 +200,17 @@ impl Peripherals {
         adc: Adc,
         buzzer: Tone,
         display: Display,
-        #[cfg(not(feature = "no_i2cutils"))] i2c: crate::i2c::I2c,
+        #[cfg(feature = "board_v0")]
+        ext_pin: Pin<Input<AnyInput>, ExtPinInt>,
+        #[cfg(not(feature = "no_i2cutils"))]
+        i2c: crate::i2c::I2c,
     ) -> Self {
         Self {
             adc,
             buzzer,
             display,
+            #[cfg(feature = "board_v0")]
+            ext_pin: ExtPin::new(ext_pin),
             #[cfg(not(feature = "no_i2cutils"))]
             i2c,
         }

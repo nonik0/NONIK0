@@ -72,16 +72,16 @@ impl I2cState {
 
     // TODO: move raw functions into this impl, grab mutex once per outer call
 
-    fn set_pin_mode(&mut self, pullup: bool) {
+    fn set_pin_mode(&mut self, pull_up: bool) {
         if let Some(sda) = self.sda.take() {
-            self.sda = Some(if pullup {
+            self.sda = Some(if pull_up {
                 sda.into_pull_up_input().forget_imode()
             } else {
                 sda.into_floating_input().forget_imode()
             });
         }
         if let Some(scl) = self.scl.take() {
-            self.scl = Some(if pullup {
+            self.scl = Some(if pull_up {
                 scl.into_pull_up_input().forget_imode()
             } else {
                 scl.into_floating_input().forget_imode()
@@ -89,7 +89,7 @@ impl I2cState {
         }
     }
 
-    fn pins_to_pullup(&mut self) {
+    fn pins_to_pull_up(&mut self) {
         self.set_pin_mode(true);
     }
 
@@ -150,11 +150,11 @@ where
         Self {}
     }
 
-    pub fn pins_to_pullup(&mut self) {
+    pub fn pins_to_pull_up(&mut self) {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
             let state = state_opt.as_mut().unwrap();
-            state.pins_to_pullup();
+            state.pins_to_pull_up();
         });
     }
 
@@ -241,7 +241,7 @@ where
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
             let state = state_opt.as_mut().unwrap();
 
-            state.pins_to_pullup();
+            state.pins_to_pull_up();
 
             let baud = twi_baud(speed, 350) as u8; // hard-coded rise time estimate for now
             state.twi.mbaud().write(|w| w.set(baud));
@@ -324,7 +324,7 @@ where
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
             let state = state_opt.as_mut().unwrap();
 
-            state.pins_to_pullup();
+            state.pins_to_pull_up();
 
             state.twi.saddr().write(|w| w.set(address << 1));
             state.twi.sctrla().write(|w| {
