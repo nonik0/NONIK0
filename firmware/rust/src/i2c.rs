@@ -145,6 +145,22 @@ where
         Self {}
     }
 
+    pub fn pins_to_pullup(&mut self) {
+        avr_device::interrupt::free(|cs| {
+            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+            let state = state_opt.as_mut().unwrap();
+            state.pins_to_pullup();
+        });
+    }
+
+    pub fn pins_to_floating(&mut self) {
+        avr_device::interrupt::free(|cs| {
+            let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
+            let state = state_opt.as_mut().unwrap();
+            state.pins_to_floating();
+        });
+    }
+
     //
     // HOST PUBLIC
     //
