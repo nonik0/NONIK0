@@ -78,6 +78,7 @@ impl I2CUtils {
         i2c.host_setup(I2C_BUS_SPEED);
     }
 
+    #[inline(never)]
     fn scan_update(&mut self, i2c: &mut I2c) -> bool {
         // detect pause state
         if self.scan_found_address != 0 || self.scan_error.is_some() {

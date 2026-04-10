@@ -26,7 +26,7 @@ const fn twi_baud(freq: u32, t_rise: u32) -> u32 {
 // TODO: investigate issues with chunking data and consecutive writes from host
 // for now, specific feature enables large buffer for use as I2C client
 #[cfg(feature = "i2c_client")]
-pub const I2C_BUFFER_SIZE: usize = 200; 
+pub const I2C_BUFFER_SIZE: usize = 200;
 #[cfg(not(feature = "i2c_client"))]
 pub const I2C_BUFFER_SIZE: usize = 32;
 static I2C_STATE: avr_device::interrupt::Mutex<RefCell<Option<I2cState>>> =
@@ -72,24 +72,29 @@ impl I2cState {
 
     // TODO: move raw functions into this impl, grab mutex once per outer call
 
-    fn pins_to_pullup(&mut self) {
+    fn set_pin_mode(&mut self, pullup: bool) {
         if let Some(sda) = self.sda.take() {
-            self.sda = Some(sda.into_pull_up_input().forget_imode());
+            self.sda = Some(if pullup {
+                sda.into_pull_up_input().forget_imode()
+            } else {
+                sda.into_floating_input().forget_imode()
+            });
         }
-        
         if let Some(scl) = self.scl.take() {
-            self.scl = Some(scl.into_pull_up_input().forget_imode());
+            self.scl = Some(if pullup {
+                scl.into_pull_up_input().forget_imode()
+            } else {
+                scl.into_floating_input().forget_imode()
+            });
         }
     }
 
+    fn pins_to_pullup(&mut self) {
+        self.set_pin_mode(true);
+    }
+
     fn pins_to_floating(&mut self) {
-        if let Some(sda) = self.sda.take() {
-            self.sda = Some(sda.into_floating_input().forget_imode());
-        }
-        
-        if let Some(scl) = self.scl.take() {
-            self.scl = Some(scl.into_floating_input().forget_imode());
-        }
+        self.set_pin_mode(false);
     }
 }
 
@@ -231,7 +236,6 @@ where
     //
     // HOST
     //
-    #[inline]
     fn raw_setup(&mut self, speed: u32) {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -249,7 +253,6 @@ where
         });
     }
 
-    #[inline]
     fn raw_start(&mut self, address: u8, _direction: Direction) -> Result<(), Error> {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -263,7 +266,6 @@ where
         })
     }
 
-    #[inline]
     fn raw_write(&mut self, bytes: &[u8]) -> Result<(), Error> {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -282,7 +284,6 @@ where
         })
     }
 
-    #[inline]
     fn raw_read(&mut self, buffer: &mut [u8], _last_read: bool) -> Result<(), Error> {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -299,12 +300,10 @@ where
         })
     }
 
-    #[inline]
     fn raw_stop(&mut self) -> Result<(), Error> {
         self.host_transmit(true)
     }
 
-    #[inline]
     fn raw_end(&mut self) {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -320,7 +319,6 @@ where
     //
     // CLIENT
     //
-    #[inline]
     fn raw_setup_client(&mut self, address: u8) {
         avr_device::interrupt::free(|cs| {
             let mut state_opt = I2C_STATE.borrow(cs).borrow_mut();
@@ -395,7 +393,7 @@ where
 
             let mut addr_sent = false;
             let mut data_sent = false;
-            
+
             let result = loop {
                 let status = state.twi.mstatus().read();
                 let bus_state = status.busstate();

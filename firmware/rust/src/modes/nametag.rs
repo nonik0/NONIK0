@@ -8,9 +8,10 @@ const MAX_IDLE_CYCLES: u8 = 200;
 
 pub struct Nametag {
     name: [u8; NUM_CHARS],
-    edit_index: Option<usize>, // None = not editing, Some(edit_index) = editing
+    edit_index: Option<u8>, // None = not editing, Some(edit_index) = editing
     blink_counter: u8,
     idle_counter: u8,
+    settings_dirty: bool,
 }
 
 impl Nametag {
@@ -30,29 +31,28 @@ impl Nametag {
             edit_index: None,
             blink_counter: 0,
             idle_counter: 0,
+            settings_dirty: false,
+        }
+    }
+
+    fn adjust_char(&self, c: u8, forward: bool) -> u8 {
+        match (c, forward) {
+            (b' ', true)  => b'A',  (b' ', false) => b'9',
+            (b'Z', true)  => b'a',  (b'a', false) => b'Z',
+            (b'z', true)  => b'0',  (b'A', false) => b' ',
+            (b'9', true)  => b' ',  (b'0', false) => b'z',
+            (c, true)  if c.is_ascii_alphanumeric() => c + 1,
+            (c, false) if c.is_ascii_alphanumeric() => c - 1,
+            _ => b' ',
         }
     }
 
     fn next_char(&self, c: u8) -> u8 {
-        match c {
-            b' ' => b'A',
-            b'Z' => b'a',
-            b'z' => b'0',
-            b'9' => b' ',
-            c if c.is_ascii_alphanumeric() => c + 1,
-            _ => b' ',
-        }
+        self.adjust_char(c, true)
     }
 
     fn prev_char(&self, c: u8) -> u8 {
-        match c {
-            b' ' => b'9',
-            b'0' => b'z',
-            b'a' => b'Z',
-            b'A' => b' ',
-            c if c.is_ascii_alphanumeric() => c - 1,
-            _ => b' ',
-        }
+        self.adjust_char(c, false)
     }
 
     fn start_editing(&mut self) {
@@ -78,6 +78,7 @@ impl ModeHandler for Nametag {
         let mut update = context.need_update();
 
         if let Some(edit_index) = self.edit_index {
+            let edit_index = edit_index as usize;
             self.blink_counter = (self.blink_counter + 1) % BLINK_PERIOD;
             self.idle_counter += 1;
             if self.idle_counter >= MAX_IDLE_CYCLES {
@@ -89,24 +90,26 @@ impl ModeHandler for Nametag {
                 match event {
                     Event::LeftReleased => {
                         self.name[edit_index] = self.prev_char(self.name[edit_index]);
+                        self.settings_dirty = true;
                         update = true;
                     }
                     Event::RightReleased => {
                         self.name[edit_index] = self.next_char(self.name[edit_index]);
+                        self.settings_dirty = true;
                         update = true;
                     }
                     Event::LeftHeld => {
                         if edit_index == 0 {
                             self.stop_editing();
                         } else {
-                            self.edit_index = Some(edit_index - 1);
+                            self.edit_index = Some((edit_index - 1) as u8);
                         }
                     }
                     Event::RightHeld => {
                         if edit_index + 1 >= NUM_CHARS {
                             self.stop_editing();
                         } else {
-                            self.edit_index = Some(edit_index + 1);
+                            self.edit_index = Some((edit_index + 1) as u8);
                         }
                     }
                     _ => {}
@@ -125,9 +128,7 @@ impl ModeHandler for Nametag {
         } else if let Some(event) = event {
             match event {
                 Event::LeftHeld => {
-                    let mut saved_named = [0; NUM_CHARS];
-                    context.settings.read_setting(Setting::Name, &mut saved_named);
-                    if self.name != saved_named {
+                    if self.settings_dirty {
                         context.settings.save_setting(Setting::Name, &self.name);
                     }
                     context.to_menu();

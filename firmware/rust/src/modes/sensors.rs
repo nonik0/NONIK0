@@ -12,6 +12,13 @@ pub const INT_REF_VOLTAGE_STRINGS: [&[u8]; 5] = [b"0.55V", b"1.1V", b"2.5V", b"4
 pub const VDD_REF_VOLTAGE_STRING: &[u8] = b"Vdd";
 pub const BOOL_STRINGS: [&[u8]; 2] = [b" no", b"yes"];
 
+#[cfg(not(feature = "board_v0"))]
+pub const CONTINUITY_BLUE_READING_MASK: u16 = 0x0001;
+#[cfg(not(feature = "board_v0"))]
+pub const CONTINUITY_YELLOW_READING_MASK: u16 = 0x0002;
+#[cfg(not(feature = "board_v0"))]
+pub const CONTINUITY_BOTH_READING_MASK: u16 = 0x0003;
+
 #[derive(Clone, Copy)]
 pub enum SensorPage {
     AdcChannel(AdcChannel),
@@ -78,16 +85,6 @@ impl From<SensorPage> for u8 {
     }
 }
 
-// convert page into channel (define what channe cont test uses)
-impl From<SensorPage> for AdcChannel {
-    fn from(value: SensorPage) -> Self {
-        match value {
-            SensorPage::AdcChannel(adc_channel) => adc_channel,
-            SensorPage::ContinuityTest => AdcChannel::Vscl, // TODO: support either pin, v0 board pin>
-        }
-    }
-}
-
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
 #[repr(u8)]
@@ -109,9 +106,11 @@ pub struct Sensors {
     cur_page: SensorPage,
     cur_setting: SensorSetting,
     port_init: bool,
-    tone_active: bool,
+    tone_active: u8, // different values for continuity channel
     settings_active: bool,
+    // for continuity, >0 is continuity, ==0 is none
     last_reading: u16,
+    continuity_channel: bool, // false = blue/sda, true = yellow/scl
 
     show_raw: bool,
     show_tempf: bool,
@@ -127,14 +126,16 @@ impl Sensors {
             cur_page: saved_page.into(),
             cur_setting: SensorSetting::Resolution,
             port_init: false,
-            tone_active: false,
+            tone_active: 0,
             settings_active: false,
             last_reading: 0,
+            continuity_channel: false,
             show_raw: false,
             show_tempf: false,
         }
     }
 
+    #[inline(never)]
     fn format_setting(&self, buf: &mut [u8; NUM_CHARS], adc: &AdcSettings) {
         match self.cur_setting {
             SensorSetting::Resolution => format_uint(
@@ -245,8 +246,20 @@ impl Sensors {
                 0,
                 None,
             ),
+            #[cfg(feature = "board_v0")]
             (SensorPage::ContinuityTest, _) => {
-                format_buf(buf, b"Cont:", if value == 0u16 { b"yes" } else { b"no" });
+                format_buf(buf, b"Cx:", if value > 0 { b"yes" } else { b" no" });
+                return;
+            }
+            #[cfg(not(feature = "board_v0"))]
+            (SensorPage::ContinuityTest, _) => {
+                let reading = match value {
+                    CONTINUITY_BLUE_READING_MASK => b" blue",
+                    CONTINUITY_YELLOW_READING_MASK => b"yellw",
+                    CONTINUITY_BOTH_READING_MASK => b"bl+yl",
+                    _ => b" none",
+                };
+                format_buf(buf, b"Cx:", reading);
                 return;
             }
         };
@@ -255,45 +268,41 @@ impl Sensors {
     }
 
     fn decrement_cur_setting(&mut self, adc: &mut AdcSettings) {
-        match self.cur_setting {
-            SensorSetting::Resolution => adc.resolution = adc.resolution.prev(),
-            SensorSetting::SampleNumber => adc.sample_number = adc.sample_number.prev(),
-            SensorSetting::SampCap => adc.samp_cap = !adc.samp_cap,
-            SensorSetting::RefVoltage => {
-                if adc.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
-                    adc.adc_ref_voltage = AdcReferenceVoltage::INTREF;
-                    adc.int_ref_voltage = IntReferenceVoltage::_4V34;
-                } else {
-                    adc.int_ref_voltage = adc.int_ref_voltage.prev();
-                }
-            }
-            SensorSetting::Prescaler => adc.prescaler = adc.prescaler.prev(),
-            SensorSetting::InitDelay => adc.init_delay = adc.init_delay.prev(),
-            SensorSetting::SetAsdv => adc.asdv = !adc.asdv,
-            SensorSetting::SampleDelay => adc.sample_delay = adc.sample_delay.saturating_sub(1),
-            SensorSetting::SampleLength => adc.sample_length = adc.sample_length.saturating_sub(1),
-        }
+        self.adjust_cur_setting(adc, false);
     }
 
     fn increment_cur_setting(&mut self, adc: &mut AdcSettings) {
+        self.adjust_cur_setting(adc, true);
+    }
+
+    fn adjust_cur_setting(&mut self, adc: &mut AdcSettings, increment: bool) {
         match self.cur_setting {
-            SensorSetting::Resolution => adc.resolution = adc.resolution.next(),
-            SensorSetting::SampleNumber => adc.sample_number = adc.sample_number.next(),
+            SensorSetting::Resolution => adc.resolution = if increment { adc.resolution.next() } else { adc.resolution.prev() },
+            SensorSetting::SampleNumber => adc.sample_number = if increment { adc.sample_number.next() } else { adc.sample_number.prev() },
             SensorSetting::SampCap => adc.samp_cap = !adc.samp_cap,
             SensorSetting::RefVoltage => {
-                if adc.adc_ref_voltage == AdcReferenceVoltage::INTREF {
-                    if adc.int_ref_voltage == IntReferenceVoltage::_4V34 {
-                        adc.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
+                if increment {
+                    if adc.adc_ref_voltage == AdcReferenceVoltage::INTREF {
+                        if adc.int_ref_voltage == IntReferenceVoltage::_4V34 {
+                            adc.adc_ref_voltage = AdcReferenceVoltage::VDDREF;
+                        } else {
+                            adc.int_ref_voltage = adc.int_ref_voltage.next();
+                        }
+                    }
+                } else {
+                    if adc.adc_ref_voltage == AdcReferenceVoltage::VDDREF {
+                        adc.adc_ref_voltage = AdcReferenceVoltage::INTREF;
+                        adc.int_ref_voltage = IntReferenceVoltage::_4V34;
                     } else {
-                        adc.int_ref_voltage = adc.int_ref_voltage.next();
+                        adc.int_ref_voltage = adc.int_ref_voltage.prev();
                     }
                 }
             }
-            SensorSetting::Prescaler => adc.prescaler = adc.prescaler.next(),
-            SensorSetting::InitDelay => adc.init_delay = adc.init_delay.next(),
+            SensorSetting::Prescaler => adc.prescaler = if increment { adc.prescaler.next() } else { adc.prescaler.prev() },
+            SensorSetting::InitDelay => adc.init_delay = if increment { adc.init_delay.next() } else { adc.init_delay.prev() },
             SensorSetting::SetAsdv => adc.asdv = !adc.asdv,
-            SensorSetting::SampleDelay => adc.sample_delay = (adc.sample_delay + 1).min(15),
-            SensorSetting::SampleLength => adc.sample_length = (adc.sample_length + 1).min(31),
+            SensorSetting::SampleDelay => adc.sample_delay = if increment { (adc.sample_delay + 1).min(15) } else { adc.sample_delay.saturating_sub(1) },
+            SensorSetting::SampleLength => adc.sample_length = if increment { (adc.sample_length + 1).min(31) } else { adc.sample_length.saturating_sub(1) },
         }
     }
 
@@ -365,8 +374,9 @@ impl ModeHandler for Sensors {
                     } else {
                         self.cur_page = self.cur_page.next();
                         self.port_init = false;
+                        self.last_reading = 0;
                         peripherals.buzzer.no_tone();
-                        self.tone_active = false;
+                        self.tone_active = 0;
                         context
                             .settings
                             .save_setting_byte(Setting::SensorPage, self.cur_page.into());
@@ -389,20 +399,41 @@ impl ModeHandler for Sensors {
                     peripherals.i2c.pins_to_pullup();
                 }
             }
+            self.port_init = true;
         }
 
         // check for new ADC reading
         if !update && !self.settings_active {
-            let reading = if self.show_raw {
-                peripherals.adc.read_raw_nonblocking(self.cur_page.into())
-            } else {
-                match self.cur_page {
-                    SensorPage::AdcChannel(AdcChannel::Temp) => {
-                        peripherals.adc.read_temp_nonblocking(self.show_tempf)
+            let reading = match self.cur_page {
+                SensorPage::AdcChannel(channel) => {
+                    if self.show_raw {
+                        peripherals.adc.read_raw_nonblocking(channel)
+                    } else {
+                        match channel {
+                            AdcChannel::Temp => {
+                                peripherals.adc.read_temp_nonblocking(self.show_tempf)
+                            }
+                            _ => peripherals.adc.read_voltage_nonblocking(channel),
+                        }
                     }
-                    _ => peripherals
-                        .adc
-                        .read_voltage_nonblocking(self.cur_page.into()),
+                }
+                #[cfg(feature = "board_v0")]
+                SensorPage::ContinuityTest => peripherals
+                    .adc
+                    .read_raw_nonblocking(AdcChannel::Vext)
+                    .map(|r| if r == 0u16 { 1 } else { 0 }),
+                #[cfg(not(feature = "board_v0"))]
+                SensorPage::ContinuityTest => {
+                    let (channel, mask) = if self.continuity_channel {
+                        (AdcChannel::Vsda, CONTINUITY_YELLOW_READING_MASK)
+                    } else {
+                        (AdcChannel::Vscl, CONTINUITY_BLUE_READING_MASK)
+                    };
+
+                    peripherals.adc.read_raw_nonblocking(channel).map(|r| {
+                        self.continuity_channel = !self.continuity_channel;
+                        if r == 0 { self.last_reading | mask } else { self.last_reading & !mask }
+                    })
                 }
             };
 
@@ -419,16 +450,34 @@ impl ModeHandler for Sensors {
             if self.settings_active {
                 self.format_setting(&mut buf, &peripherals.adc.settings);
             } else {
+                // update buzzer for continuity test
                 if matches!(self.cur_page, SensorPage::ContinuityTest) {
-                    if self.last_reading == 0u16 {
-                        if !self.tone_active {
-                            peripherals.buzzer.tone(4000, 0);
-                            self.tone_active = true;
+                    if (self.last_reading as u8) != self.tone_active {
+                        #[cfg(feature = "board_v0")] {
+                            if self.last_reading > 0 {
+                                self.tone_active = 1;
+                                peripherals.buzzer.tone(4000, 0);
+                            }
+                            else {
+                                self.tone_active = 0;
+                                peripherals.buzzer.no_tone();
+                            }
                         }
-                    } else if self.tone_active {
-                        peripherals.buzzer.no_tone();
-                        self.tone_active = false;
+                        #[cfg(not(feature = "board_v0"))]
+                        {
+                            let freq = match self.last_reading {
+                                CONTINUITY_BLUE_READING_MASK => 3000,
+                                CONTINUITY_YELLOW_READING_MASK => 4000,
+                                CONTINUITY_BOTH_READING_MASK => 5000,
+                                _ => 0,
+                            };
+                            self.tone_active = self.last_reading as u8;
+                            peripherals.buzzer.tone(freq, 0);
+                        }
                     }
+                } else if self.tone_active > 0 {
+                    peripherals.buzzer.no_tone();
+                    self.tone_active = 0;
                 }
                 self.format_reading(self.last_reading, &mut buf);
             }
