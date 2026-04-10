@@ -20,6 +20,7 @@ impl ExtPin {
         Self(Some(ext_pin))
     }
 
+    #[inline(never)]
     fn set_pin_mode(&mut self, pull_up: bool) {
         if let Some(ext_pin) = self.0.take() {
             self.0 = Some(if pull_up {
@@ -34,6 +35,7 @@ impl ExtPin {
         self.set_pin_mode(true);
     }
 
+    #[inline(always)]
     fn to_floating(&mut self) {
         self.set_pin_mode(false);
     }
