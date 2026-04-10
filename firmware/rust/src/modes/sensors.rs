@@ -43,43 +43,17 @@ impl SensorPage {
 
 impl From<u8> for SensorPage {
     fn from(value: u8) -> Self {
-        #[cfg(not(feature = "board_v0"))]
         match value {
-            1 => SensorPage::AdcChannel(AdcChannel::Vsda),
-            2 => SensorPage::AdcChannel(AdcChannel::Vscl),
-            3 => SensorPage::AdcChannel(AdcChannel::Gnd),
-            4 => SensorPage::AdcChannel(AdcChannel::Vref),
-            5 => SensorPage::ContinuityTest,
-            _ => SensorPage::AdcChannel(AdcChannel::Temp),
+            1..=AdcChannel::COUNT => SensorPage::AdcChannel(AdcChannel::from_u8(value - 1)),
+            _ => SensorPage::ContinuityTest,
         }
-        #[cfg(feature = "board_v0")]
-        match value {
-            1 => SensorPage::AdcChannel(AdcChannel::Vext),
-            2 => SensorPage::AdcChannel(AdcChannel::Gnd),
-            3 => SensorPage::AdcChannel(AdcChannel::Vref),
-            4 => SensorPage::ContinuityTest,
-            _ => SensorPage::AdcChannel(AdcChannel::Temp),
-        };
     }
 }
 
 impl From<SensorPage> for u8 {
     fn from(value: SensorPage) -> Self {
-        #[cfg(not(feature = "board_v0"))]
         match value {
-            SensorPage::AdcChannel(AdcChannel::Vsda) => 1,
-            SensorPage::AdcChannel(AdcChannel::Vscl) => 2,
-            SensorPage::AdcChannel(AdcChannel::Gnd) => 3,
-            SensorPage::AdcChannel(AdcChannel::Vref) => 4,
-            SensorPage::ContinuityTest => 5,
-            _ => 0,
-        }
-        #[cfg(feature = "board_v0")]
-        match value {
-            SensorPage::AdcChannel(AdcChannel::Vext) => 1,
-            SensorPage::AdcChannel(AdcChannel::Gnd) => 2,
-            SensorPage::AdcChannel(AdcChannel::Vref) => 3,
-            SensorPage::ContinuityTest => 4,
+            SensorPage::AdcChannel(channel) => 1 + channel.to_u8(),
             _ => 0,
         }
     }
@@ -248,7 +222,7 @@ impl Sensors {
             ),
             #[cfg(feature = "board_v0")]
             (SensorPage::ContinuityTest, _) => {
-                format_buf(buf, b"Cx:", if value > 0 { b"yes" } else { b" no" });
+                format_buf(buf, b"Cx:", BOOL_STRINGS[if value > 0 { 1 } else { 0 }]);
                 return;
             }
             #[cfg(not(feature = "board_v0"))]
